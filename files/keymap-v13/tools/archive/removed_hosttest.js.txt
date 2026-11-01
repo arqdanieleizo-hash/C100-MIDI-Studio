@@ -1,0 +1,21 @@
+/* tests of the archived pages (v12 hosttest.js). They also need the helpers lfoOn and ECn (see below) and layer 4 page numbers of v12: Turing = L4n(2), Balls = L4n(3), LFO = L4n(4), Echo = L4n(7) */
+const lfoOn_note = "lfoOn was defined in the block below";
+scripts.fuzzMacros = fuzz(909, 400, [[0, 'press', 2], [40, 'press', 19], [40, 'release', 19], [40, 'release', 2]]);
+scripts.turing = seq([...L4n(2), ...tap(3), ...tap(20), ...tap(21), ...tap(27), ...tap(44, 40), ...tap(43), ...tap(48, 2500), ...tap(gsk(1, 0)), ...tap(gsk(1, 0)), ...tap(gsk(1, 0)),
+  ...tap(gsk(6, 0), 2500), ...tap(gsk(4, 1)), ...tap(gsk(4, 1)), ...tap(gsk(4, 1), 40, 40), ...tap(gsk(2, 1), 2500), ...tap(gsk(3, 0)), ...tap(gsk(5, 0)), ...tap(gsk(0, 0), 100),
+  ...tap(47, 40), ...tap(40, 3000), ...tap(gsk(6, 1), 1500), ...tap(3, 3000)]);
+scripts.balls = seq([...L4n(3), ...tap(60), ...tap(42, 40), ...tap(25, 40), ...tap(87, 40), ...tap(3), ...tap(31, 3000), ...tap(gsk(2, 1), 40), ...tap(gsk(2, 1)), ...tap(gsk(2, 1)), ...tap(gsk(2, 1), 4000),
+  ...tap(gsk(1, 1), 100), ...tap(gsk(4, 1)), ...tap(gsk(3, 1)), ...tap(gsk(5, 0), 5000), ...tap(gsk(0, 0)), ...tap(gsk(6, 1), 3000), ...tap(70, 40), ...tap(gsk(7, 0), 3000), ...tap(gsk(7, 1), 1000), ...tap(3, 3000)]);
+const lfoOn = [...csTap(1), ...tap(gsk(0, 1)), ...tap(gsk(2, 1)), ...tap(gsk(4, 1)), ...tap(gsk(6, 1))];   // GP6 (run) selected, then LFO 1-4 on
+scripts.lfo = seq([...L4n(4), ...tap(3), ...lfoOn, ...tap(0), ...taps(gsk(2, 1), 5), ...taps(gsk(4, 1), 2), ...taps(gsk(6, 1), 1), ...csTap(0), ...taps(gsk(6, 0), 2), ...taps(gsk(0, 0), 1),
+  ...tap(10), ...taps(gsk(0, 1), 3), ...taps(gsk(2, 0), 2), ...tap(2), ...taps(gsk(1, 0), 4), ...taps(gsk(3, 1), 6), ...tap(11), ...tap(3, 4000), ...tap(1), ...taps(gsk(4, 1), 5), ...tap(11, 3000),
+  ...csTap(1), ...tap(gsk(2, 0)), ...csTap(11), ...taps(gsk(0, 1), 3), ...tap(3, 3000), ...tap(3, 500), ...tap(11, 3000), ...tap(3, 2000)]);
+scripts.lfoStopped = seq([...L4n(4), ...lfoOn, ...tap(gsk(0, 1)), ...tap(3, 3000), ...tap(3, 500)]);
+const ECn = [...L4n(7)];
+scripts.echo = seq([...ECn, ...tap(90, 40, 1800), ...tap(92, 40, 100), ...tap(97, 40, 1500), ...taps(28, 5), ...taps(49, 2), ...tap(38), ...tap(58), ...tap(90, 40, 1500), ...tap(68), ...tap(91, 40, 1200), ...tap(68),
+  ...taps(29, 10), ...taps(39, 20), ...taps(59, 12), ...taps(49, 8), ...tap(90, 40, 100), ...tap(91, 40, 100), ...tap(92, 40, 100), ...tap(93, 40, 100), ...tap(94, 40, 100), ...tap(95, 40, 3500)]);
+scripts.fuzzEcho = fuzz(7071, 400, ECn);
+scripts.fuzzTM = fuzz(2222, 400, [...L4n(2), [40, 'press', 3], [40, 'release', 3]]);
+scripts.fuzzBB = fuzz(3333, 400, [...L4n(3), [40, 'press', 3], [40, 'release', 3]]);
+scripts.fuzzLFO = fuzz(4444, 500, [...L4n(4), [40, 'press', 3], [40, 'release', 3], ...lfoOn]);
+scripts.fuzzLFO2 = fuzz(5555, 500, [...L4n(4), [40, 'press', 3], [40, 'release', 3], ...lfoOn, ...tap(gsk(0, 1)), ...tap(gsk(2, 1)), ...tap(gsk(2, 1))]);

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C100 Keycap Designer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Atkinson+Hyperlegible:wght@400;700&family=DM+Mono:wght@500&display=swap">
+<style>
+:root{--paper:#eceff2;--panel:#f8f9fa;--ink:#18222e;--muted:#566275;--line:#cfd6de;--field:#fff;--accent:#0a6cff;--plate:#171b21;
+  --ui:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;--display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;--mono:ui-monospace,Consolas,monospace;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#12161b;--panel:#1a2027;--ink:#e6ebf1;--muted:#9aa6b4;--line:#2c3541;--field:#10151a;--accent:#6aa4ff;--plate:#0a0d11;color-scheme:dark}}
+:root[data-theme="dark"]{--paper:#12161b;--panel:#1a2027;--ink:#e6ebf1;--muted:#9aa6b4;--line:#2c3541;--field:#10151a;--accent:#6aa4ff;--plate:#0a0d11;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--ui);padding:clamp(14px,3vw,34px)}
+h1{font:700 clamp(2rem,5vw,3rem)/1 var(--display);text-transform:uppercase;letter-spacing:.01em;margin:0 0 .4rem}
+h2{font:600 1.3rem/1.1 var(--display);text-transform:uppercase;letter-spacing:.03em;margin:0 0 .6rem}
+h3{font-size:1rem;margin:0 0 .3rem}
+p{margin:0}.lede{color:var(--muted);max-width:75ch}.small{font-size:.86rem;color:var(--muted)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{display:grid;grid-template-columns:minmax(0,640px) minmax(0,1fr);gap:clamp(16px,3vw,34px);margin-top:20px;align-items:start}
+@media (max-width:960px){.wrap{grid-template-columns:minmax(0,1fr)}}
+.bar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:transparent;color:var(--ink);font:500 .9rem var(--ui);padding:6px 12px;min-height:34px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.plate{background:var(--plate);border-radius:16px;padding:clamp(8px,2vw,16px)}
+.board{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:clamp(3px,.8vw,7px)}
+.k{aspect-ratio:1;border:0;padding:0;background:transparent;border-radius:9px;cursor:pointer;position:relative;display:block;min-width:0}
+.k svg{width:100%;height:100%;display:block}
+.k[aria-pressed="true"]{outline:3px solid #ff7a2e;outline-offset:2px;z-index:1}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:.88rem}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:-2px;border:1px solid #8886}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:0}
+.stack{display:grid;gap:14px}
+.lab{font:600 .72rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.jobs{margin:6px 0 0;padding:0;list-style:none;font-size:.88rem;display:grid;gap:3px}
+.jobs li{display:flex;gap:8px}.jobs b{flex:none;width:92px;white-space:nowrap}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+.sec{display:grid;grid-template-columns:96px minmax(0,1fr) minmax(0,1fr) 120px;gap:8px;align-items:center;margin:6px 0}
+@media (max-width:560px){.sec{grid-template-columns:1fr 1fr}.sec .nm{grid-column:1 / -1}}
+input[type=text],select{width:100%;font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-height:36px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:3px}
+.btn{font:500 .9rem var(--ui);background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 13px;min-height:36px;cursor:pointer}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.preview{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;align-items:end}
+.pv svg{width:100%;max-width:150px;display:block}
+.pv .mm{width:12mm;height:12mm}
+.pv .mm svg{width:12mm;height:12mm}
+.syms{display:flex;flex-wrap:wrap;gap:6px}
+.syms button{font:600 1.05rem/1 var(--ui);min-width:38px;min-height:36px;border:1px solid var(--line);background:var(--field);color:var(--ink);border-radius:6px;cursor:pointer}
+.divs button{min-width:44px}
+section.block{margin-top:34px}
+textarea{width:100%;min-height:220px;font:.8rem/1.45 var(--mono);color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:10px;resize:vertical}
+.sugg{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.sugg article{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.sugg .tag{font:600 .7rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+.msg{min-height:1.3em;font-size:.88rem;color:var(--muted)}
+#printSheet{display:none}
+@media print{body>*:not(#printSheet){display:none!important}#printSheet{display:block}@page{margin:8mm}body{padding:0;background:#fff}}
+</style>
+</head>
+<body>
+<header>
+  <h1>C100 Keycap Designer</h1>
+  <p class="lede">Every key can carry up to <b>4 commands</b>, one per section of the cap, colour-coded by layer, the same colours as the LEDs: <b style="color:#d98a1a">Layer 1</b> amber (keyboards), <b style="color:#3c7de0">Layer 2</b> blue (Ableton control), <b style="color:#17a05a">Layer 3</b> green (sequencers). The 4th section is left empty (Shift only changes layer and page). Layer 4 (generative) is not printed. The 8x8 pads are included: their legends show the <b>first page of each layer</b>. Click a key to edit it. Made from your layout file (firmware v13, /*@@DATE@@*/).</p>
+</header>
+<div class="wrap">
+  <section aria-label="Keyboard preview">
+    <div class="bar">
+      <span class="seg" role="group" aria-label="Preview as"><button type="button" id="mCap" aria-pressed="true">Keycaps</button><button type="button" id="mStk" aria-pressed="false">Stickers</button></span>
+      <span class="seg" role="group" aria-label="Cap colour"><button type="button" id="tDark" aria-pressed="true">Dark caps</button><button type="button" id="tLight" aria-pressed="false">Light caps</button></span>
+      <button type="button" class="btn" id="themeBtn">Page light / dark</button>
+    </div>
+    <div class="plate"><div class="board" id="board" role="group" aria-label="C100 keyboard, 10 by 10 keys"></div></div>
+    <div class="legend" id="legend" aria-label="Colour key"></div>
+    <p class="small" style="margin-top:8px">Sections: <b>top-left</b> = layer 1, <b>top-right</b> = layer 2, <b>bottom-left</b> = layer 3, <b>bottom-right</b> = spare (empty). A key that does the same on every layer is one big legend.</p>
+  </section>
+
+  <section class="stack" aria-label="Key editor">
+    <div class="panel stack">
+      <div><span class="lab" id="selPos">R1C1</span><h2 id="selName" style="margin-top:4px">Key</h2>
+        <ul class="jobs" id="jobs"></ul></div>
+      <div class="preview">
+        <div class="pv"><span class="lab">Keycap</span><div id="pvCap"></div></div>
+        <div class="pv"><span class="lab">Sticker</span><div id="pvStk"></div></div>
+        <div class="pv"><span class="lab">Real size (12 mm)</span><div class="mm" id="pvMm"></div></div>
+      </div>
+      <div><span class="lab">Sections on this cap</span>
+        <div class="seg divs" id="divs" role="group" aria-label="Number of sections" style="margin-top:6px"></div></div>
+      <div id="secs"></div>
+      <div class="sec" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div><label for="inGs">Big text size</label><input type="range" id="inGs" min="0.5" max="1.5" step="0.05"></div>
+        <div><label for="inTs">Small text size</label><input type="range" id="inTs" min="0.5" max="1.5" step="0.05"></div>
+        <div><label for="inFont">Font</label><select id="inFont"></select></div>
+      </div>
+      <div><span class="lab">Insert a symbol into the selected field</span><div class="syms" id="syms" style="margin-top:6px"></div></div>
+      <div class="btns"><button type="button" class="btn" id="btnReset">Back to the generated legend</button><button type="button" class="btn" id="btnAllReset">Reset all keys</button></div>
+      <p class="msg" id="msg" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+</div>
+
+<section class="block" aria-label="Notes">
+  <h2>Notes for making the keycaps</h2>
+  <div class="sugg" id="sugg"></div>
+</section>
+
+<section class="block panel" aria-label="Label list and files">
+  <h2>Label list and files</h2>
+  <p class="small" style="margin-bottom:10px">The list updates with your changes. The SVG sheet is the whole keyboard at real size (19.05 mm key pitch, 12 mm legend area): print it, or send it to a keycap or sticker shop.</p>
+  <textarea id="list" readonly spellcheck="false" aria-label="Label list"></textarea>
+  <div class="btns" style="margin-top:10px">
+    <button type="button" class="btn primary" id="btnCopy">Copy list</button>
+    <button type="button" class="btn" id="btnSvg">Download SVG sheet</button>
+    <button type="button" class="btn" id="btnPrint">Print the sheet</button>
+    <button type="button" class="btn" id="btnJson">Download my edits (.json)</button>
+    <label class="btn" style="margin:0;cursor:pointer">Load edits<input type="file" id="fileJson" accept=".json,application/json" hidden></label>
+  </div>
+  <p class="msg" id="msg2" role="status" aria-live="polite"></p>
+</section>
+<div id="printSheet" aria-hidden="true"></div>
+
+<script>
+/*@@SVGLIB@@*/
+</script>
+<script>
+'use strict';
+const DEFAULT = /*@@DATA@@*/;
+const LS = 'c100-keycaps-v13';
+const FONTS = [
+  {id: 'barlow', name: 'Barlow Condensed', css: '"Barlow Condensed","Arial Narrow",Arial,sans-serif'},
+  {id: 'atkinson', name: 'Atkinson Hyperlegible', css: '"Atkinson Hyperlegible",Arial,sans-serif'},
+  {id: 'plex', name: 'IBM Plex Sans', css: '"IBM Plex Sans","Segoe UI",system-ui,sans-serif'},
+  {id: 'dmmono', name: 'DM Mono', css: '"DM Mono",ui-monospace,monospace'}
+];
+const SYMBOLS = ['▲','▼','◀','▶','■','●','▶■','⇧','⇑','⇓','↑','↓','←','→','↶','↷','⧉','⌫','⌦','±','♯','♭','♪','◦','−','+','×2','Ⅰ','Ⅱ','Ⅲ','Ⅳ','Ⅴ','Ⅵ','Ⅶ','Ⅷ'];
+const SECNAMES = {1: ['Whole cap'], 2: ['Top', 'Bottom'], 3: ['Top', 'Bottom left', 'Bottom right'], 4: ['Top left', 'Top right', 'Bottom left', 'Bottom right']};
+const DEFCOL = ['l1', 'l2', 'l3', 'sh'];
+const $ = id => document.getElementById(id);
+let edits = {}, sel = 0, mode = 'cap', theme = 'dark', fontId = 'barlow', focusField = null, armed = false;
+try { const s = JSON.parse(localStorage.getItem(LS) || '{}'); edits = s.edits || {}; fontId = s.font || fontId; theme = s.theme || theme; } catch (e) { /* storage may be off */ }
+const save = () => { try { localStorage.setItem(LS, JSON.stringify({edits, font: fontId, theme})); } catch (e) { /* ignore */ } };
+const getKey = i => edits[i] || DEFAULT[i];
+const fontCss = () => FONTS.find(f => f.id === fontId).css;
+const clone = o => JSON.parse(JSON.stringify(o));
+function mut(fn) { const k = clone(getKey(sel)); fn(k); k.label = k.pos + ' ' + k.sec.map(s => s.g).filter(Boolean).join(' / '); edits[sel] = k; render(); }
+
+const board = $('board');
+for (let i = 0; i < 100; i++) { const b = document.createElement('button'); b.type = 'button'; b.className = 'k'; b.dataset.i = i; board.appendChild(b); }
+$('legend').innerHTML = ['l1', 'l2', 'l3', 'sh', 'gl'].map(c => '<span><i data-c="' + c + '"></i>' + KC_NAMES[c] + '</span>').join('');
+FONTS.forEach(f => { const o = document.createElement('option'); o.value = f.id; o.textContent = f.name; $('inFont').appendChild(o); });
+SYMBOLS.forEach(s => { const b = document.createElement('button'); b.type = 'button'; b.textContent = s; b.setAttribute('aria-label', 'Insert ' + s);
+  b.addEventListener('click', () => { const f = focusField && document.activeElement !== focusField ? focusField : focusField; if (!f) { $('msg').textContent = 'Click a text field in the sections first.'; return; } f.value += s; f.dispatchEvent(new Event('input')); }); $('syms').appendChild(b); });
+[1, 2, 3, 4].forEach(d => { const b = document.createElement('button'); b.type = 'button'; b.textContent = d; b.dataset.d = d; b.setAttribute('aria-label', d + (d === 1 ? ' section' : ' sections')); $('divs').appendChild(b); });
+const opts = () => ({theme, font: fontCss(), mode});
+const colorHex = c => KC_COLORS[theme][c];
+
+function render() {
+  const o = opts();
+  [...board.children].forEach((b, i) => { const k = getKey(i); b.innerHTML = keySvg(k, o); b.setAttribute('aria-pressed', i === sel ? 'true' : 'false'); b.setAttribute('aria-label', k.label || k.pos); });
+  $('mCap').setAttribute('aria-pressed', mode === 'cap'); $('mStk').setAttribute('aria-pressed', mode === 'stk' || mode === 'sticker');
+  $('tDark').setAttribute('aria-pressed', theme === 'dark'); $('tLight').setAttribute('aria-pressed', theme === 'light');
+  document.querySelectorAll('#legend i').forEach(i => { i.style.background = KC_COLORS[theme][i.dataset.c]; if (theme === 'dark' && i.dataset.c === 'gl') i.style.background = '#f1f3f5'; });
+  document.querySelector('.plate').style.background = mode === 'sticker' ? '#e9ecef' : '';
+  const k = getKey(sel), pos = k.pos;
+  $('selPos').textContent = pos + (edits[sel] ? ' · edited' : '');
+  const first = k.sec.find(s => s.g) || {};
+  $('selName').textContent = first.g ? first.g + (first.t ? ' ' + first.t : '') : 'Blank key';
+  $('jobs').innerHTML = ['Layer 1', 'Layer 2', 'Layer 3', 'Spare'].map((n, j) => '<li><b><span class="dot" style="background:' + colorHex(DEFCOL[j]) + '"></span>' + n + '</b><span></span></li>').join('');
+  [...$('jobs').children].forEach((li, j) => { li.lastChild.textContent = (DEFAULT[sel].jobs[j] || '(nothing)').slice(0, 160); });
+  $('pvCap').innerHTML = keySvg(k, {theme, font: fontCss(), mode: 'cap'});
+  $('pvStk').innerHTML = keySvg(k, {theme, font: fontCss(), mode: 'sticker'});
+  $('pvMm').innerHTML = keySvg(k, {theme, font: fontCss(), mode: 'cap'});
+  [...$('divs').children].forEach(b => b.setAttribute('aria-pressed', +b.dataset.d === k.div ? 'true' : 'false'));
+  const secs = $('secs'), keepFocus = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.f : null;
+  secs.innerHTML = '';
+  for (let n = 0; n < k.div; n++) {
+    const s = k.sec[n] || {g: '', t: '', c: DEFCOL[n] || 'gl'}, row = document.createElement('div'); row.className = 'sec';
+    row.innerHTML = '<div class="nm"><span class="lab">' + SECNAMES[k.div][n] + '</span></div><div><label>Big text</label><input type="text" maxlength="8" data-f="g' + n + '"></div><div><label>Small text</label><input type="text" maxlength="10" data-f="t' + n + '"></div><div><label>Colour</label><select data-f="c' + n + '"></select></div>';
+    row.querySelector('[data-f="g' + n + '"]').value = s.g || ''; row.querySelector('[data-f="t' + n + '"]').value = s.t || '';
+    const sc = row.querySelector('select'); ['l1', 'l2', 'l3', 'sh', 'gl'].forEach(c => { const op = document.createElement('option'); op.value = c; op.textContent = KC_NAMES[c]; sc.appendChild(op); }); sc.value = s.c || 'gl';
+    secs.appendChild(row);
+  }
+  secs.querySelectorAll('input[type=text]').forEach(inp => {
+    inp.addEventListener('focus', () => { focusField = inp; });
+    inp.addEventListener('input', () => { const n = +inp.dataset.f.slice(1), fld = inp.dataset.f[0]; mut(k2 => { k2.sec[n] = k2.sec[n] || {g: '', t: '', c: DEFCOL[n]}; k2.sec[n][fld] = inp.value; }); const again = secs.querySelector('[data-f="' + inp.dataset.f + '"]'); if (again) { again.focus(); const l = again.value.length; again.setSelectionRange(l, l); } });
+  });
+  secs.querySelectorAll('select').forEach(s2 => s2.addEventListener('change', () => { const n = +s2.dataset.f.slice(1); mut(k2 => { k2.sec[n] = k2.sec[n] || {g: '', t: ''}; k2.sec[n].c = s2.value; }); }));
+  if (keepFocus) { const f = secs.querySelector('[data-f="' + keepFocus + '"]'); if (f) f.focus(); }
+  $('inGs').value = k.gs || 1; $('inTs').value = k.ts || 1; $('inFont').value = fontId;
+  $('list').value = listText();
+  save();
+}
+function listText() {
+  const secNames = {1: ['ALL'], 2: ['ALL', 'SPARE'], 3: ['L1', 'L2', 'L3'], 4: ['L1', 'L2', 'L3', 'SPARE']};
+  const out = ['C100 8K keycap labels (firmware v13). Sections: L1 / L2 / L3 = layers 1-3 (first page), SPARE = the 4th section (left empty). Layer 4 is not printed.', 'Font: ' + FONTS.find(f => f.id === fontId).name, ''];
+  for (let i = 0; i < 100; i++) { const k = getKey(i); out.push(k.pos.padEnd(7) + ('div ' + k.div).padEnd(7) + k.sec.slice(0, k.div).map((s, n) => (secNames[k.div][n] || '').padEnd(6) + ((s.g || '-') + (s.t ? ' (' + s.t + ')' : '')).padEnd(14)).join(' ') + (k.corner ? ' mark: ' + k.corner : '')); }
+  return out.join('\n');
+}
+board.addEventListener('click', e => { const b = e.target.closest('.k'); if (!b) return; sel = +b.dataset.i; $('msg').textContent = ''; render(); });
+$('divs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const d = +b.dataset.d; mut(k => { k.div = d; for (let n = 0; n < d; n++) k.sec[n] = k.sec[n] || {g: '', t: '', c: DEFCOL[n] || 'gl'}; }); });
+$('inGs').addEventListener('input', e => mut(k => { k.gs = +e.target.value; })); $('inTs').addEventListener('input', e => mut(k => { k.ts = +e.target.value; }));
+$('inFont').addEventListener('change', e => { fontId = e.target.value; render(); });
+$('mCap').addEventListener('click', () => { mode = 'cap'; render(); }); $('mStk').addEventListener('click', () => { mode = 'sticker'; render(); });
+$('tDark').addEventListener('click', () => { theme = 'dark'; render(); }); $('tLight').addEventListener('click', () => { theme = 'light'; render(); });
+$('btnReset').addEventListener('click', () => { delete edits[sel]; $('msg').textContent = 'Back to the generated legend.'; render(); });
+$('btnAllReset').addEventListener('click', e => {
+  if (!armed) { armed = true; e.target.textContent = 'Click again to reset all'; setTimeout(() => { armed = false; e.target.textContent = 'Reset all keys'; }, 4000); return; }
+  armed = false; e.target.textContent = 'Reset all keys'; edits = {}; $('msg').textContent = 'All keys are back to the generated legends.'; render();
+});
+$('themeBtn').addEventListener('click', () => { const r = document.documentElement, dark = r.getAttribute('data-theme') ? r.getAttribute('data-theme') === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.setAttribute('data-theme', dark ? 'light' : 'dark'); });
+const keysNow = () => Array.from({length: 100}, (_, i) => getKey(i));
+const sheet = () => sheetSvg(keysNow(), {theme, font: fontCss(), mode: mode === 'sticker' ? 'sticker' : 'cap', title: 'C100 8K keycaps (firmware v13): layer 1 / 2 / 3'});
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+$('btnSvg').addEventListener('click', () => { download('C100_keycaps_layout.svg', sheet(), 'image/svg+xml'); $('msg2').textContent = 'Saved the SVG sheet (real size, in millimetres).'; });
+$('btnJson').addEventListener('click', () => { download('c100-keycap-edits.json', JSON.stringify({version: 13, font: fontId, edits}, null, 1), 'application/json'); $('msg2').textContent = 'Saved your edits.'; });
+$('fileJson').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { try { const d = JSON.parse(t); edits = d.edits || {}; if (d.font) fontId = d.font; $('msg2').textContent = 'Loaded ' + Object.keys(edits).length + ' edited keys.'; render(); } catch (er) { $('msg2').textContent = 'That file could not be read.'; } }); });
+$('btnPrint').addEventListener('click', () => { $('printSheet').innerHTML = sheet().replace(/width="[\d.]+mm" height="[\d.]+mm"/, 'width="190mm"'); window.print(); });
+$('btnCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText($('list').value); $('msg2').textContent = 'Copied.'; } catch (e) { $('list').focus(); $('list').select(); $('msg2').textContent = 'Press Ctrl+C to copy the selected list.'; } });
+[['Sections', 'Keep the 3 colours for the 3 layers', 'Amber = layer 1 (keyboards), blue = layer 2 (Ableton), green = layer 3 (sequencers), the same colours as the LEDs. The 4th section is left empty. A key that does the same everywhere is one big white (or dark) legend, so the eye finds the colour only where something changes.'],
+ ['8x8 pads', 'Pad legends describe the first page of each layer', 'The pad grid changes with every page. The legends show page 1 of each layer (Composer, Launcher, Step recorder). Edit them freely, or blank them if you prefer clear caps and the LEDs.'],
+ ['Size', 'Four sections need short text', 'On a 12 mm cap each section is about 6 mm: use 1 to 3 characters (a note name, a step number, a symbol). Put longer words on single-section keys.'],
+ ['Printing', 'Dark caps need light legends; light caps dark', 'Dye-sublimation on white PBT caps prints dark or colour legends (use "Light caps"). Dark or translucent caps need light or backlit legends (use "Dark caps").'],
+ ['Layer 4', 'Layer 4 is left off on purpose', 'It is the experimental layer: its pages change, so printing them would go out of date. The guide and the on-pad display explain it.'],
+ ['Regenerate', 'The legends come from your layout file', 'If you change the layout, run "Build pages and guide.bat": this designer and the SVG sheet are rebuilt. Your manual edits stay in this browser, and "Download my edits" keeps a copy.']
+].forEach(([tag, h, p]) => { const a = document.createElement('article'); a.innerHTML = '<div class="tag"></div><h3></h3><p class="small"></p>'; a.querySelector('.tag').textContent = tag; a.querySelector('h3').textContent = h; a.querySelector('p').textContent = p; $('sugg').appendChild(a); });
+if (/&light/.test(location.hash)) theme = 'light';
+const m = /sel=(\d+)/.exec(location.hash); if (m) sel = Math.min(99, +m[1]);
+render();
+</script>
+</body>
+</html>

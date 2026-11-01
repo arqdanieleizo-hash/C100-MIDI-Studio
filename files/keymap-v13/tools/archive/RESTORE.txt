@@ -1,0 +1,32 @@
+ARCHIVED PAGES (v13)
+====================
+Removed from layer 4 in v13: Dynamic macros (mac), Turing machine (tm), Bouncing balls (bb), LFO test (lfo), MIDI Echo (ec).
+Nothing was deleted. The code is in this folder and is NOT compiled or loaded.
+
+FILES
+removed_keymap_template.c.txt   firmware code of the 5 pages (blocks)
+removed_engine.js.txt           simulator code of the 5 pages
+removed_core.js.txt             key types (TB TL TH BB LV EC GP MC) and macro constants
+removed_hosttest.js.txt         the tests of these pages
+cut_pages.js                    the script that moved the code (for reference)
+restore_pages.js                puts the code blocks of one page back
+Where each block was, a marker is left in keymap_template.c and engine.js:   /*@ARCH tm #12@*/
+Small pieces inside a longer line are left as a comment:   /*@ARCH-INLINE tm: ... */
+
+TO RESTORE A PAGE (example: Turing machine = tm; the others: bb, lfo, ec, mac)
+1. In the tools folder run:   node archive/restore_pages.js tm
+   (puts the firmware and simulator code back at the markers)
+2. Inline pieces: for every comment  /*@ARCH-INLINE tm: ... */  in keymap_template.c and engine.js,
+   remove the comment marks so the code inside is active again.
+   (mac: also put back  mac: E.mac  in E.status(),  ec: E.ec  in E.status().)
+3. core.js: copy the key types of the page from removed_core.js.txt back into TYPES
+   (tm = TB TL TH, bb = BB, lfo = LV GP, ec = EC, mac = MC and the MACRO_ constants).
+4. Layout: add the page back. Its layout text is in the v12 layout file (c100-layout-v12.txt):
+   find "LAYER 4 PAGE n" for the page, copy that block, and raise LAYER_PAGES[3] in core.js.
+   Put the page where you want it (the page order is the order of the LAYER 4 PAGE blocks).
+5. Tests: copy the tests of the page from removed_hosttest.js.txt into hosttest/hosttest.js.
+6. Rebuild: node tools/gen_keymap.js ..., node tools/html/build_html.js, then run the host tests.
+7. In gen_keymap.js the page finders (tm_page, bb_page, lfo_page, ec_page) were also removed from the generated line
+   "static const int8_t sq_page = ...": add them back in the same style (findPage('TB'), 'BB', 'LV', 'EC').
+
+If a step fails, the v12 folder (files/keymap-v12) still has everything working as before.

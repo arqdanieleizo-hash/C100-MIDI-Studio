@@ -1,0 +1,530 @@
+// ===================== core (shared by the planner, the simulator and gen_keymap; no page access) =====================
+// v8: 4 main layers x 4 pages (Page Up / Page Down), a shared Controls table (Default + Shift), 4-color palettes.
+const ROWS = 10, COLS = 10, NUM_LAYERS = 4, NUM_SLOTS = 8, NUM_PAGES = 32;
+const PAGE_NAMES = ['PAGE 1', 'PAGE 2', 'PAGE 3', 'PAGE 4', 'PAGE 5', 'PAGE 6', 'PAGE 7', 'PAGE 8'];
+const PAGE_SHORT = ['Page 1', 'Page 2', 'Page 3', 'Page 4', 'Page 5', 'Page 6', 'Page 7', 'Page 8'];
+const LAYER_PAGES = [7, 5, 4, 3];                                         // 1 keyboards, 2 Ableton, 3 sequencers, 4 generative pages (v13: Random walk, Pond, Constellation)
+const pageActive = p => (p % NUM_SLOTS) < LAYER_PAGES[Math.floor(p / NUM_SLOTS)];
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const noteName = n => NOTE_NAMES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 2);   // Ableton style: 60 = C3
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const LED_MODES = {auto: 'Automatic (by key type)', solid: 'Solid main color', scale: 'Scale lighting (root + scale)', piano: 'Piano (white / black keys)', off: 'Off (only held pads light)'};
+const PALETTE_ROLES = ['Main', 'Color 2', 'Color 3', 'Color 4'];
+
+// Scales. bank 0 = Western, bank 1 = Non-Western. dev = cents added to each degree (microtones, sent with pitch bend / MPE).
+const SCALES = [
+  {name: 'Major',            code: 'MJ', iv: [0,2,4,5,7,9,11]},
+  {name: 'Minor',            code: 'MN', iv: [0,2,3,5,7,8,10]},
+  {name: 'Dorian',           code: 'DR', iv: [0,2,3,5,7,9,10]},
+  {name: 'Phrygian',         code: 'PH', iv: [0,1,3,5,7,8,10]},
+  {name: 'Lydian',           code: 'LY', iv: [0,2,4,6,7,9,11]},
+  {name: 'Mixolydian',       code: 'MX', iv: [0,2,4,5,7,9,10]},
+  {name: 'Locrian',          code: 'LC', iv: [0,1,3,5,6,8,10]},
+  {name: 'Harmonic minor',   code: 'HM', iv: [0,2,3,5,7,8,11]},
+  {name: 'Melodic minor',    code: 'MM', iv: [0,2,3,5,7,9,11]},
+  {name: 'Major pentatonic', code: 'PJ', iv: [0,2,4,7,9]},
+  {name: 'Minor pentatonic', code: 'PN', iv: [0,3,5,7,10]},
+  {name: 'Blues',            code: 'BL', iv: [0,3,5,6,7,10]},
+  {name: 'Chromatic',        code: 'CR', iv: [0,1,2,3,4,5,6,7,8,9,10,11]},
+  {name: 'Maqam Rast',       code: 'RA', iv: [0,2,4,5,7,9,11], dev: [0,0,-50,0,0,0,-50], bank: 1},
+  {name: 'Maqam Bayati',     code: 'BY', iv: [0,2,3,5,7,8,10], dev: [0,-50,0,0,0,0,0], bank: 1},
+  {name: 'Raga Bhairav',     code: 'BH', iv: [0,1,4,5,7,8,11], bank: 1},
+  {name: 'Pelog (gamelan)',  code: 'PL', iv: [0,1,3,5,7,8,10], dev: [0,20,-30,40,-30,-15,-50], bank: 1},
+  {name: 'Hirajoshi',        code: 'HJ', iv: [0,2,3,7,8], bank: 1}
+];
+SCALES.forEach(s => { s.bank = s.bank || 0; s.dev = s.dev || s.iv.map(() => 0); s.micro = s.dev.some(d => d !== 0); });
+const BANK_FIRST = [0, 13], BANK_SIZE = [13, 5], BANK_NAMES = ['Western', 'Non-Western'];
+
+// Microtonal keyboard tunings (layer 4 page 2). cents of pad (x, y), 0 = the root.
+const TUNINGS = [
+  {code: '24', name: '24-EDO (quarter tones)',  step: 50,       up: 8},
+  {code: '19', name: '19-EDO',                  step: 1200 / 19, up: 6},
+  {code: '31', name: '31-EDO',                  step: 1200 / 31, up: 8},
+  {code: 'JI', name: 'Just intonation (5-limit grid: right = pure fifth, up = pure major third)'},
+  {code: 'HS', name: 'Harmonic series (overtones 1 to 64)'},
+  {code: 'BP', name: 'Bohlen-Pierce (13 steps per tritave)', step: 1901.955 / 13, up: 4}
+];
+function tuningCents(t, x, y) {
+  switch (t) {
+    case 3: { const c = (x - 3) * 701.955 + (y - 3) * 386.314; return ((c % 1200) + 1200) % 1200; }
+    case 4: return 1200 * Math.log2(1 + y * 8 + x);
+    default: { const T = TUNINGS[t]; return (x + y * T.up) * T.step; }
+  }
+}
+const TUNING_BASE = [48, 48, 48, 60, 24, 36];    // MIDI note of the bottom-left pad (before root and octave)
+
+const CHORD_ROWS = ['triad', '1st inv', '2nd inv', '7th', '9th', 'sus2', 'sus4', 'power'];
+function chordSteps(row, L) {
+  return [[0,2,4], [2,4,L], [4,L,L+2], [0,2,4,6], [0,2,4,6,8], [0,1,4], [0,3,4], [0,4,L]][row];
+}
+// Harmony page (layer 3 page 1): chord keyboard columns
+const HARM_TYPES = ['triad', '7th', '9th', 'sus4'];
+const HARM_STEPS = [[0,2,4], [0,2,4,6], [0,2,4,6,8], [0,3,4]];
+const HARM_NEXT = [[3,4], [4], [5], [4,0], [0], [3,1], [0]];      // likely next chord by degree (I->IV,V  ii->V  iii->vi  IV->V,I  V->I  vi->IV,ii  vii->I)
+const ROMAN = ['I','II','III','IV','V','VI','VII','I'];
+function degreePitch(d, base, iv) {
+  const L = iv.length, o = Math.floor(d / L), k = ((d % L) + L) % L;
+  return base + 12 * o + iv[k];
+}
+const inScale = (note, root, iv) => iv.includes((((note - root) % 12) + 12) % 12);
+function snapToScale(note, root, iv) { let n = note; for (let k = 0; k < 12 && !inScale(n, root, iv); k++) n--; return n; }
+const isBlackKey = n => [1,3,6,8,10].includes(((n % 12) + 12) % 12);
+const ARP_RATES = [['1/2', 2, 1], ['1/4', 1, 1], ['1/4T', 2, 3], ['1/8', 1, 2], ['1/8T', 1, 3], ['1/16', 1, 4], ['1/16T', 1, 6], ['1/32', 1, 8]];
+const ARP_MODES = ['up', 'down', 'up-down', 'down-up', 'random', 'as played', 'chord', 'off', 'alberti', 'bach', 'rolling', 'bebop', 'upper', 'cadence', 'intensity'];
+const ARP_CODES = ['UP', 'DN', 'UD', 'DU', 'RN', 'AS', 'CH', 'OF', 'AL', 'BA', 'RO', 'BE', 'US', 'CS', 'IN'];   // 2-letter codes shown on the grid
+const ARP_GATES = [25, 50, 75, 100];
+const TRACK_MODES = ['select', 'arm', 'solo', 'mute', 'volume', 'pan', 'send A', 'send B'];
+const FADER_BASE = [0, 0, 0, 0, 40, 48, 56, 72];          // CC of fader 1 in modes 4..7
+const rowValue = r => Math.round(r * 127 / 7);           // fader pad row (0 = bottom) -> CC value
+// keyboard zones: 20-23 step recorder pianos, 0 L1 upper piano, 1 L1 lower piano, 2 L3 effects piano, 3 L4 macro piano, 4-7 layer 4 keyboards (x 4 banks = 4-19), 19 = L1 drums
+const NUM_ZONES = 24, DRUM_ZONE = 19;     // 20-23 = step recorder pianos
+const ZONE_SLOT = [1, 2, 1, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 0, 1, 2, 1, 3];   // which palette color a zone uses
+const CHORD_TYPES = [
+  {code: 'MJ', name: 'major', iv: [0,4,7]}, {code: 'MN', name: 'minor', iv: [0,3,7]}, {code: 'D7', name: 'dominant 7', iv: [0,4,7,10]},
+  {code: 'J7', name: 'major 7', iv: [0,4,7,11]}, {code: 'N7', name: 'minor 7', iv: [0,3,7,10]}, {code: 'S2', name: 'sus2', iv: [0,2,7]},
+  {code: 'S4', name: 'sus4', iv: [0,5,7]}, {code: 'DM', name: 'diminished', iv: [0,3,6]}, {code: 'AU', name: 'augmented', iv: [0,4,8]},
+  {code: 'P5', name: 'power', iv: [0,7,12]}, {code: 'A9', name: 'add9', iv: [0,4,7,14]}, {code: 'OC', name: 'octave', iv: [0,12]},
+  {code: 'IK', name: 'in key (triad from the scale)', iv: null}];
+// MIDI effects (layer 3 page 4). Each has up to 6 faders with 6 steps (0 = bottom).
+const FX_DEFS = [
+  {code: 'DL', name: 'Delay',          params: ['time', 'repeats', 'decay', 'pitch'],              def: [2, 2, 2, 0]},
+  {code: 'CH', name: 'Chorus / double', params: ['interval', 'offset', 'level'],                  def: [0, 1, 3]},
+  {code: 'TR', name: 'Tremolo (CC 11)', params: ['rate', 'depth', 'shape'],                        def: [3, 3, 0]},
+  {code: 'RD', name: 'Reverse delay',  params: ['time', 'repeats', 'start level'],                 def: [2, 3, 1]},
+  {code: 'PP', name: 'Ping-pong echo', params: ['time', 'repeats', 'decay', 'width'],              def: [2, 3, 2, 5]},
+  {code: 'HA', name: 'Harmonizer',     params: ['+octave', '-octave', '5th', '7th', '3rd'],        def: [3, 0, 3, 0, 0]},
+  {code: 'RL', name: 'Note repeat',    params: ['rate', 'gate', 'level shape', 'swing'],           def: [3, 2, 0, 0]},
+  {code: 'RA', name: 'Ratchet',        params: ['hits', 'span', 'decay'],                          def: [2, 1, 1]},
+  {code: 'ST', name: 'Strum',          params: ['speed', 'direction', 'level ramp'],               def: [2, 0, 0]},
+  {code: 'FL', name: 'Flam / drag',    params: ['type', 'spacing', 'grace level'],                 def: [0, 2, 2]},
+  {code: 'VB', name: 'Vibrato (bend)', params: ['rate', 'depth', 'delay'],                         def: [3, 1, 0]},
+  {code: 'HU', name: 'Humanize',       params: ['timing', 'velocity', 'random note'],              def: [2, 2, 0]}];
+// Polyrhythm engine (layer 4 page 3): per-track settings (hold + arrows)
+const POLY_PARAMS = ['steps', 'rate', 'channel', 'velocity', 'gate', 'probability', 'rotate', 'direction', 'swing', 'ratchet'];
+const POLY_RATES = ['1/4', '1/8', '1/16', '1/32'];
+const POLY_DIRS = ['FW', 'RV', 'PP', 'RN'];          // forward, reverse, ping-pong, random
+const PARAM_NAMES = {SCALE: 'scale', ROOT: 'root', OCT: 'octave', TEMPO: 'tempo', CHAN: 'channel', VOL: 'volume',
+  ZC: 'zone channel', ZO: 'zone octave', ZV: 'zone volume', ZT: 'chord type', ZK: 'chord type', };
+const CC_PLAY = 85, CC_STOP = 86, CC_REC = 87, CC_TAP = 88, CC_TEMPO = 89;
+
+// computer-key shortcuts (KB:CTRL+U)
+const KB_MODS = ['CTRL', 'SHIFT', 'ALT', 'GUI'];
+const KB_KEYS = 'A B C D E F G H I J K L M N O P Q R S T U V W X Y Z 0 1 2 3 4 5 6 7 8 9 F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 UP DOWN LEFT RIGHT SPACE ENTER TAB ESC DEL BSPC HOME END PGUP PGDN MINUS EQUAL'.split(' ');
+function kbValid(s) {
+  const parts = String(s || '').toUpperCase().split('+').filter(Boolean);
+  if (!parts.length) return false;
+  const key = parts.pop();
+  return KB_KEYS.includes(key) && parts.every(m => KB_MODS.includes(m));
+}
+const kbPretty = s => String(s).toUpperCase().split('+').map(p => p.length > 1 ? p[0] + p.slice(1).toLowerCase() : p).join('+');
+
+// type code -> label, token prefix/suffix, number settings, group. "ctrl" = a control key (white, orange while held / on).
+const TYPES = {
+  N:      {label: 'Note, fixed',                          pre: 'N',  num: 'Note number (0 to 127)', min: 0, max: 127, group: 'Notes'},
+  T:      {label: 'Note that follows the octave keys',    pre: 'T',  num: 'Note number (0 to 127)', min: 0, max: 127, group: 'Notes'},
+  S:      {label: 'In-key note (scale step from the root)', pre: 'S', num: 'Scale step (0 = root of the lowest octave)', min: 0, max: 63, group: 'Notes'},
+  CH:     {label: 'Chord pad (scale chord)',              pre: 'CH', num: 'Chord index 0-63 (column = degree, row from bottom = chord type)', min: 0, max: 63, group: 'Notes'},
+  CK:     {label: 'Harmony chord key (degree x type)',    pre: 'CK', num: 'Index 0-31: row from bottom = degree I-VII, I; column = triad, 7th, 9th, sus4', min: 0, max: 31, group: 'Harmony'},
+  MK:     {label: 'Harmony melody key (scale step)',      pre: 'MK', num: 'Scale step 0-63 (lights by the held chord)', min: 0, max: 63, group: 'Harmony'},
+  MT:     {label: 'Microtonal pad',                       pre: 'MT', num: 'Pad 0-63 (0 = bottom-left, counting right, then up)', min: 0, max: 63, group: 'Microtonal'},
+  TUD:    {label: 'Previous tuning',                      pre: 'TU-', group: 'Microtonal', ctrl: true},
+  TUU:    {label: 'Next tuning',                          pre: 'TU+', group: 'Microtonal', ctrl: true},
+  LT:     {label: 'Note latch (hold, double-tap locks)',  pre: 'LT', group: 'Notes', ctrl: true},
+  SL:     {label: 'Sustain (hold) + latch (double-tap)',  pre: 'SUS', group: 'Notes', ctrl: true},
+  PBU:    {label: 'Pitch bend up (while held)',           pre: 'PB+', group: 'Notes', ctrl: true},
+  PBD:    {label: 'Pitch bend down (while held)',         pre: 'PB-', group: 'Notes', ctrl: true},
+  SCU:    {label: 'Scale type next',                      pre: 'SC+', group: 'Scale', ctrl: true},
+  SCD:    {label: 'Scale type previous',                  pre: 'SC-', group: 'Scale', ctrl: true},
+  RTU:    {label: 'Root note up',                         pre: 'RT+', group: 'Scale', ctrl: true},
+  RTD:    {label: 'Root note down',                       pre: 'RT-', group: 'Scale', ctrl: true},
+  QZ:     {label: 'Scale quantize on / off',              pre: 'QZ', group: 'Scale', ctrl: true},
+  CC:     {label: 'CC button (127 pressed, 0 released)',  pre: 'CC', num: 'CC number (0 to 127)', min: 0, max: 127, group: 'Controllers'},
+  CT:     {label: 'CC toggle (127, then 0, alternating)', pre: 'CT', num: 'CC number (0 to 127)', min: 0, max: 127, group: 'Controllers'},
+  KU:     {label: 'Knob up (adds the knob step)',         pre: 'K', suf: '+', num: 'CC number (0 to 127)', min: 0, max: 127, group: 'Controllers'},
+  KD:     {label: 'Knob down (subtracts the knob step)',  pre: 'K', suf: '-', num: 'CC number (0 to 127)', min: 0, max: 127, group: 'Controllers'},
+  FD:     {label: 'Fader pad (value from its row)',       pre: 'FD', num: 'CC number (0 to 127)', min: 0, max: 127, group: 'Controllers'},
+  PC:     {label: 'Program change',                       pre: 'PC', num: 'Program number (0 to 127)', min: 0, max: 127, group: 'Controllers'},
+  KB:     {label: 'Computer key / shortcut',              pre: 'KB:', str: true, group: 'Controllers'},
+  PS:     {label: 'Play / stop (CC 85 / CC 86 + internal clock)', pre: 'PS', group: 'Transport and tempo', ctrl: true},
+  PLAY:   {label: 'Play (CC 85, starts the internal clock)', pre: 'PLAY', group: 'Transport and tempo', ctrl: true},
+  STOP:   {label: 'Stop (CC 86, stops the internal clock)',  pre: 'STOP', group: 'Transport and tempo', ctrl: true},
+  BREC:   {label: 'Board record mode (sequencers record what you play)', pre: 'BREC', group: 'Transport and tempo', ctrl: true},
+  REC:    {label: 'Ableton record (CC 87)',               pre: 'REC', group: 'Transport and tempo', ctrl: true},
+  TAP:    {label: 'Tap tempo (CC 88)',                    pre: 'TAP', group: 'Transport and tempo', ctrl: true},
+  BPMU:   {label: 'Tempo +1 BPM (CC 89 relative)',        pre: 'BPM+', group: 'Transport and tempo', ctrl: true},
+  BPMD:   {label: 'Tempo -1 BPM (CC 89 relative)',        pre: 'BPM-', group: 'Transport and tempo', ctrl: true},
+  KILL:   {label: 'Kill switch: all notes off, stop everything', pre: 'KILL', group: 'Transport and tempo', ctrl: true},
+  PGU:    {label: 'Page up (next page of this layer)',    pre: 'PG+', group: 'Layers and pages', ctrl: true},
+  PGD:    {label: 'Page down (previous page)',            pre: 'PG-', group: 'Layers and pages', ctrl: true},
+  CS:     {label: 'Controls Shift (hold: control keys use the Shift table)', pre: 'CS', group: 'Layers and pages', ctrl: true},
+  LU:     {label: 'Next main layer',                      pre: 'L+', group: 'Layers and pages', ctrl: true},
+  LD:     {label: 'Previous main layer',                  pre: 'L-', group: 'Layers and pages', ctrl: true},
+  LG:     {label: 'Go to a main layer',                   pre: 'L', num: 'Layer number', min: 1, max: NUM_LAYERS, group: 'Layers and pages', ctrl: true},
+  LM:     {label: 'Main layer while held',                pre: 'LM', num: 'Layer number', min: 1, max: NUM_LAYERS, group: 'Layers and pages', ctrl: true},
+  XU:     {label: 'Octave / transpose up',                pre: 'X+', group: 'Layers and pages', ctrl: true},
+  XD:     {label: 'Octave / transpose down',              pre: 'X-', group: 'Layers and pages', ctrl: true},
+  XR:     {label: 'Octave / transpose reset',             pre: 'X0', group: 'Layers and pages', ctrl: true},
+  CL:     {label: 'Clip pad (note n, or fader in mixer modes)', pre: 'CL', num: 'Clip index 0-63 (0 = bottom-left)', min: 0, max: 63, group: 'Ableton launcher'},
+  TR:     {label: 'Track button',                         pre: 'TR', num: 'Track 1-8', min: 1, max: 8, group: 'Ableton launcher'},
+  TM:     {label: 'Track mode',                           pre: 'TM', num: 'Mode: 0 select, 1 arm, 2 solo, 3 mute, 4 volume, 5 pan, 6 send A, 7 send B', min: 0, max: 7, group: 'Ableton launcher', ctrl: true},
+  XY:     {label: 'XY pad position (Kaoss style)',        pre: 'XY', num: 'Pad index 0-63 (0 = bottom-left, counting right, then up)', min: 0, max: 63, group: 'XY pad'},
+  XH:     {label: 'XY hold (keeps the effect on)',        pre: 'XH', group: 'XY pad', ctrl: true},
+  XF:     {label: 'XY effect select',                     pre: 'XF', num: 'Effect number (0 to 7)', min: 0, max: 7, group: 'XY pad'},
+  AP:     {label: 'Arpeggiator: double-tap on / off, hold for settings', pre: 'ARP', group: 'Arpeggiator', ctrl: true},
+  A:      {label: 'Arpeggiator input note (follows octave)', pre: 'A', num: 'Note number (0 to 127)', min: 0, max: 127, group: 'Arpeggiator'},
+  AR:     {label: 'Arp rate',                             pre: 'AR', num: 'Rate 0-7: 1/2, 1/4, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32', min: 0, max: 7, group: 'Arpeggiator'},
+  AM:     {label: 'Arp mode',                             pre: 'AM', num: 'Mode 0-7: up, down, up-down, down-up, random, as played, chord, off', min: 0, max: 7, group: 'Arpeggiator'},
+  AO:     {label: 'Arp octaves',                          pre: 'AO', num: 'Octaves 1-4', min: 1, max: 4, group: 'Arpeggiator'},
+  AG:     {label: 'Arp gate',                             pre: 'AG', num: 'Gate 0-3: 25, 50, 75, 100%', min: 0, max: 3, group: 'Arpeggiator'},
+  AS:     {label: 'Arp rhythm step on / off',             pre: 'AS', num: 'Step 0-7', min: 0, max: 7, group: 'Arpeggiator'},
+  SQ:     {label: 'Step sequencer cell',                  pre: 'SQ', num: 'Cell 0-63 (row from bottom = lane, column = step)', min: 0, max: 63, group: 'Sequencers'},
+  SP:     {label: 'Step sequencer page',                  pre: 'SP', num: 'Page 0 = steps 1-8, 1 = steps 9-16', min: 0, max: 1, group: 'Sequencers', ctrl: true},
+  EU:     {label: 'Euclidean step (tap = lane length up to this step)', pre: 'EU', num: 'Cell 0-63 (row from bottom = lane, column = step in the 8-step view)', min: 0, max: 63, group: 'Sequencers'},
+  GH:     {label: 'Generative setting: HOLD it and use the arrows (up / right = more, down / left = less). Random walk: 0 rate, 1 step size, 2 pull to centre, 3 Y mode (left / right = CC number), 4 octave, 5 gate, 6 channel of the selected walker. Pond: 0 speed, 1 decay, 2 threshold, 3 wavelength, 4 octave, 5 filter CC, 6 reach, 7 note length, 8 max ripples', pre: 'GH', num: 'Setting 0-8', min: 0, max: 8, group: 'Generative', ctrl: true},
+  GT:     {label: 'Generative switch (tap). Random walk: 0 = run on / off. Pond: 0 = melodic / drum mode, 1 = clear the ripples', pre: 'GT', num: 'Switch 0-1', min: 0, max: 1, group: 'Generative', ctrl: true},
+  EV:     {label: 'Euclidean step view: 0 = steps 1-8, 1 = steps 9-16', pre: 'EV', num: 'View 0-1', min: 0, max: 1, group: 'Sequencers', ctrl: true},
+  CLK:    {label: 'Clock source: tap = Auto (follow an outside MIDI clock when one arrives) / Internal only (ignore outside clock, start and stop)', pre: 'CLK', group: 'Transport and tempo', ctrl: true},
+  EP:     {label: 'Euclidean setting: HOLD it and use the arrows: 0 length, 1 hits, 2 start point, 3 variation. Up / down = pick the lane, left / right = change the value. Nothing held = start point', pre: 'EP', num: 'Parameter 0-3', min: 0, max: 3, group: 'Sequencers', ctrl: true},
+  EK:     {label: 'Euclidean lane key: lane x 2 + (0 = down, 1 = up)', pre: 'EK', num: 'Key 0-15 (lane 1 = 0 / 1 ... lane 8 = 14 / 15)', min: 0, max: 15, group: 'Sequencers', ctrl: true},
+  RW:     {label: 'Random walk field cell (tap = move the walker there)', pre: 'RW', num: 'Cell 0-63 (row from bottom x 8 + column; column = pitch, row = velocity / CC)', min: 0, max: 63, group: 'Generative'},
+  CP:     {label: 'Chord progression step (Harmony page): tap = select the step, Delete + tap = clear it', pre: 'CP', num: 'Step 0-3', min: 0, max: 3, group: 'Generative', ctrl: true},
+  CQ:     {label: 'CC sequencer step (lane x 8 + step) of the selected effect layer. Not recording: the key is a live fader (column 1 = 0 ... column 8 = 127). Recording: tap a step (its lane flashes), then a key 1-8 for the value; double-tap a step = on / off', pre: 'CQ', num: 'Step 0-31 (lane x 8 + step)', min: 0, max: 31, group: 'Sequencers'},
+  CR:     {label: 'CC sequencer key: 0-3 value -8 / +8 / -1 / +1, 4-5 tempo -5 / +5, 6-7 lane length - / +, 8-9 lane CC - / +, 10-11 channel - / +, 12 play / stop, 13 reset, 14 fill lane, 15 clear lane, 19-22 mute lane 1-4, 23 record on / off (16-18 are not used)', pre: 'CR', num: 'Key 0-23', min: 0, max: 23, group: 'Sequencers'},
+  CE:     {label: 'CC sequencer effect layer 1-8: tap = select it for editing, tap the selected one again = on / off. Every layer that is on sends its own CC numbers and values at the same time', pre: 'CE', num: 'Layer 0-7', min: 0, max: 7, group: 'Sequencers'},
+  CY:     {label: 'CC sequencer learn for lane 1-4: tap, then move a knob on your controller: the lane takes that CC number (needs a device that sends CC)', pre: 'CY', num: 'Lane 0-3', min: 0, max: 3, group: 'Sequencers', ctrl: true},  PD:     {label: 'Pond cell (tap = drop a pebble; the ripples play the cells they reach)', pre: 'PD', num: 'Cell 0-63 (row from bottom x 8 + column)', min: 0, max: 63, group: 'Generative'},
+  PN:     {label: 'Pond key: 0-1 ripple speed, 2-3 decay, 4-5 threshold, 6-7 wavelength, 8 melodic / drum mode, 9 clear ripples, 10-11 octave, 12-13 filter CC number', pre: 'PN', num: 'Key 0-13', min: 0, max: 13, group: 'Generative', ctrl: true},
+  CN:     {label: 'Constellation cell (tap = place or remove an anchor, max 20)', pre: 'CN', num: 'Cell 0-63 (row from bottom x 8 + column)', min: 0, max: 63, group: 'Generative'},
+  CX:     {label: 'Constellation clear (removes all anchors)', pre: 'CX', group: 'Generative', ctrl: true},
+  RL:     {label: 'Rolled chords on / off (tap). Hold + arrows: up / down = speed, right = direction (up / down / alternate), left = velocity ramp (flat / rising / falling)', pre: 'RL', group: 'Notes', ctrl: true},
+  WK:     {label: 'Walker key: 0-3 = select walker 1-4, 4-7 = walker 1-4 on / off, 8 / 9 = channel of the selected walker down / up (0 = board channel)', pre: 'WK', num: 'Key 0-9', min: 0, max: 9, group: 'Generative'},
+  GS:     {label: 'Generative setting key: row from top x 2 + (0 = down, 1 = up); the row picks the setting of the page', pre: 'GS', num: 'Key 0-15 (R3 = 0 / 1 ... R10 = 14 / 15)', min: 0, max: 15, group: 'Generative', ctrl: true},
+  MS:     {label: 'Mini step (16 steps for the selected sequence)', pre: 'MS', num: 'Step 0-15 (reading order)', min: 0, max: 15, group: 'Sequencers'},
+  ST:     {label: 'Mini sequencer target: hold + press drums or a piano', pre: 'ST', group: 'Sequencers', ctrl: true},
+  DEL:    {label: 'Delete: hold + tap a step clears it (with Controls Shift: clear all)', pre: 'DEL', group: 'Sequencers', ctrl: true},
+  CPY:    {label: 'Copy sequence (with Controls Shift: paste, then tap the first step)', pre: 'CPY', group: 'Sequencers', ctrl: true},
+  SCALE:  {label: 'Scale: hold + arrows (up/down scale, left/right bank)', pre: 'SCALE', group: 'Hold + arrows', ctrl: true},
+  ROOT:   {label: 'Root note: hold + arrows',             pre: 'ROOT', group: 'Hold + arrows', ctrl: true},
+  OCT:    {label: 'Octave / transpose: hold + arrows',    pre: 'OCT', group: 'Hold + arrows', ctrl: true},
+  TEMPO:  {label: 'Tempo: hold + arrows',                 pre: 'TEMPO', group: 'Hold + arrows', ctrl: true},
+  CHAN:   {label: 'MIDI channel for the whole board: hold + arrows', pre: 'CHAN', group: 'Hold + arrows', ctrl: true},
+  VOL:    {label: 'Volume (CC 7): hold + arrows',         pre: 'VOL', group: 'Hold + arrows', ctrl: true},
+  ZN:     {label: 'Keyboard zone note',                   pre: 'Z', zone: true, num: 'Note number (0 to 127)', min: 0, max: 127, group: 'Keyboard zones'},
+  ZC:     {label: 'Zone channel: hold + arrows',          pre: 'ZC', num: 'Zone 0-23', min: 0, max: 23, group: 'Keyboard zones', ctrl: true},
+  ZO:     {label: 'Zone octave: hold + arrows',           pre: 'ZO', num: 'Zone 0-23', min: 0, max: 23, group: 'Keyboard zones', ctrl: true},
+  ZV:     {label: 'Zone volume: hold + arrows',           pre: 'ZV', num: 'Zone 0-23', min: 0, max: 23, group: 'Keyboard zones', ctrl: true},
+  ZK:     {label: 'Zone chord: tap on / off, hold + arrows for the type', pre: 'ZK', num: 'Zone 0-23', min: 0, max: 23, group: 'Keyboard zones', ctrl: true},
+  ZT:     {label: 'Zone chord type: hold + arrows',       pre: 'ZT', num: 'Zone 0-23', min: 0, max: 23, group: 'Keyboard zones', ctrl: true},
+  ZA:     {label: 'Zone arpeggiator (old; use the ARP key)', pre: 'ZA', num: 'Zone 0-23', min: 0, max: 23, group: 'Keyboard zones', ctrl: true},
+  KP:     {label: 'Keyboard bank (zones 4-7 move by 4)',  pre: 'KP', num: 'Bank 0-3', min: 0, max: 3, group: 'Keyboard zones', ctrl: true},
+  KPD:    {label: 'Previous keyboard bank',               pre: 'KP-', group: 'Keyboard zones', ctrl: true},
+  KPU:    {label: 'Next keyboard bank',                   pre: 'KP+', group: 'Keyboard zones', ctrl: true},
+  FX:     {label: 'MIDI effect: tap = edit, double-tap = on / off', pre: 'FX', num: 'Effect 0-11', min: 0, max: 11, group: 'MIDI effects'},
+  FP:     {label: 'MIDI effect fader',                    pre: 'FP', num: 'Cell 0-35 (row from bottom x 6 + column)', min: 0, max: 35, group: 'MIDI effects'},
+  SS:     {label: 'Step recorder cell (track x 8 + step in the step page)', pre: 'SS', num: 'Cell 0-31 (row 3 = track 1 ... row 6 = track 4; column = step in the page)', min: 0, max: 31, group: 'Step recorder'},
+  DS:     {label: 'Drum step (16 per step page, follows the tracks)', pre: 'DS', num: 'Step 0-15 (reading order)', min: 0, max: 15, group: 'Step recorder'},
+  SM:     {label: 'Mute the track where the step cursor is',  pre: 'SM', group: 'Step recorder', ctrl: true},
+  SR:     {label: 'Rest (step record: empty step, move on)',  pre: 'SR', group: 'Step recorder', ctrl: true},
+  TI:     {label: 'Tie (step record: hold the previous note)', pre: 'TI', group: 'Step recorder', ctrl: true},
+  SV:     {label: 'Velocity mode: double-tap, the track rows become 8 faders with 4 levels', pre: 'SV', group: 'Step recorder', ctrl: true},
+  SG:     {label: 'Step page: flicks 8-step pages (tracks) and 16-step pages (drum steps)', pre: 'SG', group: 'Step recorder', ctrl: true},
+  BARS:   {label: 'Bars: hold + arrows, 1 or 2 bars = 16 or 32 steps', pre: 'BARS', group: 'Step recorder', ctrl: true},
+  SK:     {label: 'Keyboard page 1-3: hold + arrows', pre: 'SK', group: 'Step recorder', ctrl: true},
+  LN:     {label: 'Track length: hold + arrows', pre: 'LN', group: 'Step recorder', ctrl: true},
+  MET:    {label: 'Metronome on / off', pre: 'MET', group: 'Step recorder', ctrl: true},
+  SRT:    {label: 'Track rate: hold + arrows (up / down 1/8, 1/16, 1/32; right / left triplet on / off)', pre: 'SRT', group: 'Step recorder', ctrl: true},
+  SSW:    {label: 'Track swing: hold + arrows (0-50%)', pre: 'SSW', group: 'Step recorder', ctrl: true},
+  SDR:    {label: 'Track direction: hold + arrows (forward, reverse, ping-pong, random)', pre: 'SDR', group: 'Step recorder', ctrl: true},
+  FXK:    {label: 'Effects key: tap = effects on / off (hold a note or track step first = only that one); hold = edit the effects', pre: 'FXK', group: 'MIDI effects', ctrl: true},
+  FXO:    {label: 'Effects off everywhere. Effects key + this key = MIDI kill switch', pre: 'FXO', group: 'MIDI effects', ctrl: true},
+  REFC:   {label: 'Main control page (use the CONTROLS tables)', pre: '>C', group: 'References', ctrl: true},
+  REFL:   {label: 'Layer default (use page 1 of this layer)', pre: '>L', group: 'References', ctrl: true},
+  custom: {label: 'Custom (describe it in the note)',     pre: '*', group: 'Other'},
+  trans:  {label: 'Inherit (page 1 of this layer, then the Controls tables)', pre: '~', group: 'Other'},
+  none:   {label: 'No function',                          pre: '-', group: 'Other'}
+};
+const TYPE_ALIASES = {SA: 'PGU', SB: 'PGD'};      // planner v3 exports
+// token parsing order: longer / more specific prefixes first
+const PARSE_ORDER = Object.keys(TYPES).sort((a, b) => (TYPES[b].pre.length + (TYPES[b].suf ? 1 : 0)) - (TYPES[a].pre.length + (TYPES[a].suf ? 1 : 0)));
+
+const mk = (type, n = 0, note = '', s = '', z = 0) => ({type, n, note, s, z});
+
+function token(c) {
+  const t = TYPES[c.type]; if (!t) return '-';
+  if (t.str) return t.pre + String(c.s || '').toUpperCase();
+  if (t.zone) return 'Z' + (c.z || 0) + 'N' + c.n;
+  return t.pre + (t.num ? c.n : '') + (t.suf || '');
+}
+
+function parseToken(tok) {
+  const t = String(tok).toUpperCase();
+  if (TYPE_ALIASES[t]) return mk(TYPE_ALIASES[t]);
+  if (t === '.') return mk('trans');
+  const zm = t.match(/^Z(\d+)N(\d+)$/);
+  if (zm) return +zm[1] <= NUM_ZONES - 1 && +zm[2] <= 127 ? mk('ZN', +zm[2], '', '', +zm[1]) : null;
+  for (const k of PARSE_ORDER) {
+    if (TYPES[k].zone) continue;
+    const ty = TYPES[k];
+    if (ty.str) { if (t.startsWith(ty.pre)) { const s = t.slice(ty.pre.length); return kbValid(s) ? mk(k, 0, '', s) : null; } continue; }
+    if (!ty.num) { if (t === ty.pre) return mk(k); continue; }
+    if (!t.startsWith(ty.pre)) continue;
+    const rest = t.slice(ty.pre.length), suf = ty.suf || '';
+    if (suf && !rest.endsWith(suf)) continue;
+    const digits = suf ? rest.slice(0, -suf.length) : rest;
+    if (!/^\d+$/.test(digits)) continue;
+    const n = +digits;
+    if (n < ty.min || n > ty.max) return null;
+    return mk(k, n);
+  }
+  return null;
+}
+
+const isPad = i => Math.floor(i / COLS) >= 2 && (i % COLS) <= 7;
+const isCtrl = i => !isPad(i);
+const ARROW_KEYS = {8: 'RIGHT', 9: 'UP', 18: 'LEFT', 19: 'DOWN'};          // R1C9, R1C10, R2C9, R2C10: arrows (with Controls Shift: PG+, L+, PG-, L-)
+const NAV_SHIFT = {8: 'PGU', 9: 'LU', 18: 'PGD', 19: 'LD'};
+const isLocked = i => ARROW_KEYS[i] !== undefined;
+const padRC = i => ({c: i % COLS, r: 9 - Math.floor(i / COLS)});          // r = 0 at the bottom row
+const padIndex = (c, r) => (9 - r) * COLS + c;
+const pageIndex = (layer, slot) => layer * NUM_SLOTS + slot;            // layer 0..3, slot 0..3
+const keyName = i => 'R' + (Math.floor(i / COLS) + 1) + 'C' + ((i % COLS) + 1);
+
+const DEFAULT_COLORS = ['#ffffff', '#4080ff', '#ffb000', '#00e0a0'];
+function blankPage(layer, slot) {
+  return {layer, slot, name: 'Free', colors: DEFAULT_COLORS.slice(), channel: 0, led: 'auto', purpose: '', ledNote: '',
+          cells: Array.from({length: 100}, (_, i) => mk(isPad(i) ? 'none' : 'trans')),
+          shift: Array.from({length: 100}, () => mk('trans'))};
+}
+function blankControls() {
+  const base = Array.from({length: 100}, () => mk('none')), shift = Array.from({length: 100}, () => mk('trans'));
+  Object.entries(ARROW_KEYS).forEach(([i, k]) => { base[i] = mk('KB', 0, '', k); });
+  Object.entries(NAV_SHIFT).forEach(([i, k]) => { shift[i] = mk(k); });
+  return {base, shift};
+}
+function blankState() {
+  const pages = [];
+  for (let l = 0; l < NUM_LAYERS; l++) for (let s = 0; s < NUM_SLOTS; s++) pages.push(blankPage(l, s));
+  return {settings: {knobStep: 4, knobMode: 'absolute', transposeStep: 12, transposeLimit: 24, bpm: 120, seqNote: 36, bendRange: 48},
+          controls: blankControls(), pages};
+}
+
+// What a key really does. Pads: the page, then page 1 of the layer, else nothing.
+// Control keys: with Controls Shift held, the page's shift cell, page 1's shift cell, the Controls Shift table;
+// if all are "~" (or without shift): the page cell, page 1's cell, the Controls Default table.
+// Returns {c, page}: page = -1 when the key comes from the Controls tables (uses the board channel).
+function resolveCell(st, p, i, shift) {
+  const pg = st.pages[p], p1 = pageIndex(pg.layer, 0), chain = [[pg, p], [st.pages[p1], p1]];
+  const ctrl = () => ({c: st.controls.base[i], page: -1});
+  if (isLocked(i)) return shift ? {c: st.controls.shift[i], page: -1, shifted: true} : ctrl();
+  // one walk: the page, then page 1 of the layer. >C stops the walk (use the Controls tables), >L skips the page's own cell.
+  const walk = sh => {
+    for (let k = 0; k < 2; k++) {
+      const c = (sh ? chain[k][0].shift : chain[k][0].cells)[i];
+      if (c.type === 'REFC') return 'C';
+      if (c.type === 'REFL') { if (k === 0) continue; return 'C'; }
+      if (c.type !== 'trans') return {c, page: chain[k][1], shifted: sh};
+    }
+    return null;
+  };
+  if (!isPad(i) && shift) {
+    const r = walk(true);
+    if (r && r !== 'C') return r;
+    if (st.controls.shift[i].type !== 'trans') return {c: st.controls.shift[i], page: -1, shifted: true};
+    if (r === 'C') return st.controls.base[i].type !== 'trans' ? ctrl() : {c: mk('none'), page: p};
+  }
+  if (isPad(i) && shift && pg.shift[i].type !== 'trans') return {c: pg.shift[i], page: p, shifted: true};   // v13: a page can give pads a job while Controls Shift is held (layer 2 page 4: 32 knobs)
+  const r = walk(false);
+  if (r && r !== 'C') return r;
+  if (!isPad(i) && st.controls.base[i].type !== 'trans') return ctrl();
+  return {c: mk('none'), page: p};
+}
+// A control key whose job changes with the layer, the page or Controls Shift (its LED is cyan, not white)
+const SHIFT_AWARE = ['DEL', 'CPY'];
+function controlVaries(st, p, i) {
+  if (isPad(i)) return false;
+  const r = resolveCell(st, p, i, false), c = r.c, base = st.controls.base[i];
+  if (c.type === 'none' || c.type === 'trans') return false;
+  if (isLocked(i)) return true;
+  const pg = st.pages[p], p1 = st.pages[pageIndex(pg.layer, 0)];
+  if (st.controls.shift[i].type !== 'trans' || pg.shift[i].type !== 'trans' || p1.shift[i].type !== 'trans') return true;
+  if (SHIFT_AWARE.includes(c.type)) return true;
+  return r.page !== -1 && (c.type !== base.type || c.n !== base.n || c.s !== base.s);
+}
+
+function gridLines(cells, padDot) {
+  const toks = cells.map((c, i) => padDot && isPad(i) && (padDot !== 'trans' || c.type === 'trans') ? '.' : token(c));   // padDot 'trans': a page's Shift table prints only the pads that have a job
+  const w = Math.max(6, ...toks.map(t => t.length + 1));
+  const out = [' '.repeat(5) + Array.from({length: COLS}, (_, c) => ('C' + (c + 1)).padEnd(w)).join('').trimEnd()];
+  for (let r = 0; r < ROWS; r++) out.push(('R' + (r + 1)).padEnd(5) + toks.slice(r * COLS, r * COLS + COLS).map(t => t.padEnd(w)).join('').trimEnd());
+  return out;
+}
+const clean = s => String(s || '').replace(/\s+/g, ' ').trim();
+function noteLines(cells, tag) {
+  const out = [];
+  cells.forEach((cell, i) => { if (cell.note && cell.note.trim()) out.push('KEYNOTE ' + keyName(i) + (tag ? ' ' + tag : '') + ': ' + clean(cell.note)); });
+  return out;
+}
+
+function exportText(st) {
+  const out = [];
+  out.push('=== C100 8K KEYMAP (planner v6) ===');
+  out.push('Board: Keychron C100 8K, 10 rows x 10 columns. R1 is the top row, C1 the left column.');
+  out.push('The 8x8 pad area is R3 to R10 by C1 to C8 (bottom-left). Control keys: rows R1-R2 and columns C9-C10. R1C1 is also the flash-mode key.');
+  out.push('4 main layers: 1 keyboards (7 pages), 2 Ableton control (5), 3 sequencers (4), 4 generative pages (3). Navigation = the 4 top-right keys (R1C9, R1C10, R2C9, R2C10): arrows by default; with Controls Shift held: PG+, L+, PG-, L-. Shift has no other job. Control keys come from the CONTROLS tables unless a page changes them: >C on a page = use the CONTROLS tables, >L = use page 1 of the layer.');
+  out.push('Date: ' + new Date().toISOString().slice(0, 10));
+  out.push('');
+  out.push('SETTINGS');
+  const s = st.settings;
+  out.push('knob_step: ' + s.knobStep);
+  out.push('knob_mode: ' + s.knobMode);
+  out.push('transpose_step: ' + s.transposeStep);
+  out.push('transpose_limit: ' + s.transposeLimit);
+  out.push('bpm: ' + s.bpm);
+  out.push('seq_note: ' + s.seqNote);
+  out.push('bend_range: ' + s.bendRange);
+  out.push('');
+  out.push('KEY CODES');
+  out.push('  -  no function   ~  inherit (page 1 of the layer, then the CONTROLS table)   >C use the CONTROLS tables   >L use page 1 of the layer   .  pad area (not used in CONTROLS tables)   *  custom, see KEYNOTE');
+  out.push('  N36 fixed note   T36 note that follows the octave keys   S5 in-key note   CH12 chord pad   Z19N36 zone note   ZC ZO ZV ZK ZT zone keys');
+  out.push('  PB+ PB- pitch bend   SUS sustain + latch   SCALE ROOT OCT TEMPO CHAN VOL hold + arrows   QZ scale quantize   ARP arpeggiator');
+  out.push('  CC20 CC button   CT20 CC toggle   K20+ K20- knob   FD102 fader pad   PC5 program change   KB:CTRL+U computer key');
+  out.push('  PS play/stop   BREC board record   REC Ableton record   TAP tempo   PG+ PG- page   L+ L- layer   CS Controls Shift');
+  out.push('  CL clip   TR track   TM track mode   XY XH XF XY pad   MS mini step   ST sequence target   DEL CPY delete / copy');
+  out.push('  SQ SP step sequencer   EU euclidean   FX FP MIDI effects   KILL   CK MK harmony keys   MT TU+ TU- microtonal');
+  out.push('  EP EK euclidean settings   FXK FXO effects key / effects off   MC macros   KP+ KP- keyboard bank');
+  out.push('  RW random walk cell   CP chord progression step   CQ CR CC sequencer   PD PN pond   CN CX constellation   RL rolled chords   WK walker select / on-off / channel   GS generative settings');
+  out.push('  SS DS SM SR TI SV SG BARS SK LN MET SRT SSW SDR step recorder + drum steps (layer 3 page 1)');
+  out.push('');
+  out.push('CONTROLS DEFAULT');
+  gridLines(st.controls.base, true).forEach(l => out.push(l));
+  noteLines(st.controls.base).forEach(l => out.push(l));
+  out.push('');
+  out.push('CONTROLS SHIFT');
+  gridLines(st.controls.shift, true).forEach(l => out.push(l));
+  noteLines(st.controls.shift).forEach(l => out.push(l));
+  st.pages.forEach(pg => {
+    if (!pageActive(pageIndex(pg.layer, pg.slot))) return;
+    out.push('');
+    out.push('LAYER ' + (pg.layer + 1) + ' ' + PAGE_NAMES[pg.slot] + ' "' + pg.name.replace(/"/g, "'") + '"');
+    out.push('colors: ' + pg.colors.join(' '));
+    out.push('channel: ' + (pg.channel ? pg.channel : 'global'));
+    out.push('led: ' + pg.led);
+    out.push('purpose: ' + clean(pg.purpose));
+    out.push('led_note: ' + clean(pg.ledNote));
+    gridLines(pg.cells, false).forEach(l => out.push(l));
+    noteLines(pg.cells).forEach(l => out.push(l));
+    if (pg.shift.some(c => c.type !== 'trans')) {
+      out.push('SHIFT');
+      gridLines(pg.shift, 'trans').forEach(l => out.push(l));
+    }
+    noteLines(pg.shift, '(shift)').forEach(l => out.push(l));
+  });
+  return out.join('\n') + '\n';
+}
+
+const OLD_SHIFT = {DEFAULT: 0, SHIFTA: 1, SHIFTB: 2, SHIFTAB: 3, SHIFTA_B: 3};
+function parseExport(text) {
+  const st = blankState();
+  let cur = null, target = null, m, rows = 0, where = '', legacy = false;
+  const done = [];
+  const finish = () => { if (target && rows !== ROWS) throw new Error(where + ' has ' + rows + ' rows. It needs 10 (R1 to R10).'); };
+  const begin = (cells, label) => { finish(); target = cells; rows = 0; where = label; };
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/^===.*planner v[123]\b/i.test(line)) legacy = true;
+    if (/^CONTROLS\s+DEFAULT/i.test(line)) { cur = null; begin(st.controls.base, 'CONTROLS DEFAULT'); continue; }
+    if (/^CONTROLS\s+SHIFT/i.test(line)) { cur = null; begin(st.controls.shift, 'CONTROLS SHIFT'); continue; }
+    if ((m = line.match(/^LAYER\s+(\d+)\s*(PAGE\s*[1-8]|DEFAULT|SHIFT\s*A\s*\+?\s*B|SHIFT\s*AB|SHIFT\s*A|SHIFT\s*B)?\s*(?:"(.*)")?\s*$/i))) {
+      const w = (m[2] || 'PAGE 1').toUpperCase().replace(/[\s+]/g, '');
+      const slot = w.startsWith('PAGE') ? +w.slice(4) - 1 : OLD_SHIFT[w];
+      const layer = +m[1] - 1;
+      if (layer < 0 || layer >= NUM_LAYERS) throw new Error('Layer ' + (layer + 1) + ' does not exist. There are 4 main layers.');
+      if (!(slot >= 0 && slot < LAYER_PAGES[layer])) throw new Error('Layer ' + (layer + 1) + ' has ' + LAYER_PAGES[layer] + ' pages, so ' + (PAGE_SHORT[slot] || 'that page') + ' does not exist.');
+      const p = pageIndex(layer, slot);
+      if (done.includes(p)) throw new Error('Layer ' + (layer + 1) + ' ' + PAGE_SHORT[slot] + ' appears twice.');
+      done.push(p);
+      cur = blankPage(layer, slot);
+      if (m[3]) cur.name = m[3];
+      st.pages[p] = cur;
+      begin(cur.cells, 'Layer ' + (layer + 1) + ' ' + PAGE_SHORT[slot]);
+      continue;
+    }
+    if (cur && /^SHIFT$/i.test(line)) { begin(cur.shift, where.replace(/ shift$/, '') + ' shift'); continue; }
+    if (!target) {
+      if ((m = line.match(/^knob_step:\s*(\d+)/i)))            st.settings.knobStep = clamp(+m[1], 1, 32);
+      else if ((m = line.match(/^knob_mode:\s*(\w+)/i)))       st.settings.knobMode = m[1].toLowerCase() === 'relative' ? 'relative' : 'absolute';
+      else if ((m = line.match(/^transpose_step:\s*(\d+)/i)))  st.settings.transposeStep = clamp(+m[1], 1, 12);
+      else if ((m = line.match(/^transpose_limit:\s*(\d+)/i))) st.settings.transposeLimit = clamp(+m[1], 1, 48);
+      else if ((m = line.match(/^bpm:\s*(\d+)/i)))             st.settings.bpm = clamp(+m[1], 40, 240);
+      else if ((m = line.match(/^seq_note:\s*(\d+)/i)))        st.settings.seqNote = clamp(+m[1], 0, 112);
+      else if ((m = line.match(/^bend_range:\s*(\d+)/i)))      st.settings.bendRange = clamp(+m[1], 1, 96);
+      continue;
+    }
+    if (cur) {
+      if ((m = line.match(/^colors?:\s*(.*)$/i))) {
+        const cs = (m[1].match(/#[0-9a-fA-F]{6}/g) || []).map(x => x.toLowerCase());
+        if (cs.length) cur.colors = [0, 1, 2, 3].map(k => cs[k] || (k === 0 ? cs[0] : DEFAULT_COLORS[k]));
+        continue;
+      }
+      if ((m = line.match(/^channel:\s*(\d+|global)/i)))      { cur.channel = /global/i.test(m[1]) ? 0 : clamp(+m[1], 1, 16); continue; }
+      if ((m = line.match(/^led:\s*(\w+)/i)))                   { cur.led = LED_MODES[m[1].toLowerCase()] ? m[1].toLowerCase() : 'auto'; continue; }
+      if ((m = line.match(/^purpose:\s*(.*)$/i)))               { cur.purpose = m[1]; continue; }
+      if ((m = line.match(/^led_note:\s*(.*)$/i)))              { cur.ledNote = m[1]; continue; }
+    }
+    if ((m = line.match(/^KEYNOTE\s+R(\d+)C(\d+)\s*(\(shift\))?\s*:\s*(.*)$/i))) {
+      const r = +m[1] - 1, c = +m[2] - 1;
+      const cells = m[3] ? (cur ? cur.shift : st.controls.shift) : (cur ? cur.cells : target);
+      if (r >= 0 && r < ROWS && c >= 0 && c < COLS) cells[r * COLS + c].note = m[4];
+      continue;
+    }
+    if ((m = line.match(/^R(\d+)\s+(.+)$/))) {
+      const r = +m[1] - 1, toks = m[2].trim().split(/\s+/);
+      if (r < 0 || r >= ROWS) throw new Error('Row R' + m[1] + ' does not exist. Rows go from R1 to R10.');
+      if (toks.length !== COLS) throw new Error(where + ', R' + m[1] + ' needs 10 keys but has ' + toks.length + '.');
+      toks.forEach((t, c) => {
+        const i = r * COLS + c;
+        const cell = parseToken(t);
+        if (!cell) throw new Error(where + ', R' + m[1] + 'C' + (c + 1) + ': I do not understand "' + t + '".');
+        if (isLocked(i)) return;                                  // arrows never change
+        if ((target === st.controls.base || target === st.controls.shift) && isPad(i)) return;   // (a page's own Shift table may hold pad jobs)
+        if (target === st.controls.base && cell.type === 'trans') cell.type = 'none';
+        cell.note = target[i].note || '';
+        target[i] = cell;
+      });
+      rows++;
+    }
+  }
+  finish();
+  if (!done.length) throw new Error('I could not find any "LAYER" sections in that text.');
+  if (legacy) upgradeLegacy(st);
+  return st;
+}
+// planner v3 exports had no CONTROLS tables: layer 1 Default's control keys become the Controls Default table.
+function upgradeLegacy(st) {
+  const p0 = st.pages[0];
+  for (let i = 0; i < 100; i++) if (!isPad(i) && !isLocked(i)) {
+    const c = p0.cells[i];
+    st.controls.base[i] = c.type === 'trans' ? mk('none') : c;
+    p0.cells[i] = mk('trans');
+  }
+}
+
+function checks(st) {
+  const w = [];
+  const all = [...st.controls.base, ...st.controls.shift].map(c => c.type);
+  [['PGU', 'Page up'], ['PGD', 'Page down'], ['LU', 'Next layer'], ['LD', 'Previous layer'], ['CS', 'Controls Shift']].forEach(([t, nm]) => { if (!all.includes(t)) w.push('The Controls tables have no ' + nm + ' key.'); });
+  for (let p = 0; p < NUM_PAGES; p++) {
+    if (!pageActive(p)) continue;
+    const types = st.pages[p].cells.map((_, i) => resolveCell(st, p, i, false).c.type);
+    const nm = 'Layer ' + (st.pages[p].layer + 1) + ' ' + PAGE_SHORT[st.pages[p].slot];
+    if (!types.includes('CS')) w.push(nm + ' hides the Controls Shift key.');
+  }
+  return [...new Set(w)].slice(0, 4);
+}
+
+// 3x5 font for the LED text display, rows top to bottom
+const FONT = {"A": ["010", "101", "111", "101", "101"], "B": ["110", "101", "110", "101", "110"], "C": ["011", "100", "100", "100", "011"], "D": ["110", "101", "101", "101", "110"], "E": ["111", "100", "110", "100", "111"], "F": ["111", "100", "110", "100", "100"], "G": ["011", "100", "101", "101", "011"], "H": ["101", "101", "111", "101", "101"], "I": ["111", "010", "010", "010", "111"], "J": ["001", "001", "001", "101", "010"], "K": ["101", "101", "110", "101", "101"], "L": ["100", "100", "100", "100", "111"], "M": ["101", "111", "111", "101", "101"], "N": ["110", "101", "101", "101", "101"], "O": ["010", "101", "101", "101", "010"], "P": ["110", "101", "110", "100", "100"], "Q": ["010", "101", "101", "110", "011"], "R": ["110", "101", "110", "101", "101"], "S": ["011", "100", "010", "001", "110"], "T": ["111", "010", "010", "010", "010"], "U": ["101", "101", "101", "101", "111"], "V": ["101", "101", "101", "101", "010"], "W": ["101", "101", "111", "111", "101"], "X": ["101", "101", "010", "101", "101"], "Y": ["101", "101", "010", "010", "010"], "Z": ["111", "001", "010", "100", "111"], "0": ["111", "101", "101", "101", "111"], "1": ["010", "110", "010", "010", "111"], "2": ["110", "001", "010", "100", "111"], "3": ["110", "001", "010", "001", "110"], "4": ["101", "101", "111", "001", "001"], "5": ["111", "100", "110", "001", "110"], "6": ["011", "100", "111", "101", "111"], "7": ["111", "001", "010", "010", "010"], "8": ["111", "101", "111", "101", "111"], "9": ["111", "101", "111", "001", "110"], "#": ["101", "111", "101", "111", "101"], "-": ["000", "000", "111", "000", "000"], "+": ["000", "010", "111", "010", "000"], " ": ["000", "000", "000", "000", "000"]};
+
+const DEFAULT_EXPORT = "=== C100 8K KEYMAP (planner v6) ===\nBoard: Keychron C100 8K, 10 rows x 10 columns. R1 is the top row, C1 the left column.\nThe 8x8 pad area is R3 to R10 by C1 to C8 (bottom-left). Control keys: rows R1-R2 and columns C9-C10. R1C1 is also the flash-mode key.\n4 main layers: 1 keyboards (7 pages), 2 Ableton control (4), 3 sequencers (3), 4 macros and generative pages (5). Navigation = the 4 top-right keys (R1C9, R1C10, R2C9, R2C10): arrows by default; with Controls Shift held: PG+, L+, PG-, L-. Control keys come from the CONTROLS tables unless a page changes them: >C on a page = use the CONTROLS tables, >L = use page 1 of the layer.\nDate: 2026-10-17\n\nSETTINGS\nknob_step: 4\nknob_mode: absolute\ntranspose_step: 12\ntranspose_limit: 24\nbpm: 120\nseq_note: 36\nbend_range: 48\n\nKEY CODES\n  -  no function   ~  inherit (page 1 of the layer, then the CONTROLS table)   >C use the CONTROLS tables   >L use page 1 of the layer   .  pad area (not used in CONTROLS tables)   *  custom, see KEYNOTE\n  N36 fixed note   T36 note that follows the octave keys   S5 in-key note   CH12 chord pad   Z19N36 zone note   ZC ZO ZV ZK ZT zone keys\n  PB+ PB- pitch bend   SUS sustain + latch   SCALE ROOT OCT TEMPO CHAN VOL hold + arrows   QZ scale quantize   ARP arpeggiator\n  CC20 CC button   CT20 CC toggle   K20+ K20- knob   FD102 fader pad   PC5 program change   KB:CTRL+U computer key\n  PS play/stop   BREC board record   REC Ableton record   TAP tempo   PG+ PG- page   L+ L- layer   CS Controls Shift\n  CL clip   TR track   TM track mode   XY XH XF XY pad   MS mini step   ST sequence target   DEL CPY delete / copy\n  SQ SP step sequencer   EU euclidean   FX FP MIDI effects   KILL   CK MK harmony keys   MT TU+ TU- microtonal\n  EP EK euclidean settings   FXK FXO effects key / effects off   MC macros   KP+ KP- keyboard bank\n  RW random walk cell   TB TL TH Turing machine bits / lock / history   BB bouncing balls   LV LFO display   GS GP generative settings / LFO setting select\n  SS DS SM SR TI SV SG BARS SK LN MET SRT SSW SDR step recorder + drum steps (layer 3 page 1)\n\nCONTROLS DEFAULT\n     C1        C2        C3        C4        C5        C6        C7        C8        C9        C10\nR1   PB+       DEL       CS        PS        BREC      CHAN      SCALE     OCT       KB:RIGHT  KB:UP\nR2   PB-       CPY       KB:CTRL+Z QZ        TAP       VOL       TEMPO     ROOT      KB:LEFT   KB:DOWN\nR3   .         .         .         .         .         .         .         .         K20-      K20+\nR4   .         .         .         .         .         .         .         .         K21-      K21+\nR5   .         .         .         .         .         .         .         .         K22-      K22+\nR6   .         .         .         .         .         .         .         .         K23-      K23+\nR7   .         .         .         .         .         .         .         .         K24-      K24+\nR8   .         .         .         .         .         .         .         .         K25-      K25+\nR9   .         .         .         .         .         .         .         .         FXK       FXO\nR10  .         .         .         .         .         .         .         .         ARP       SUS\nKEYNOTE R1C1: Pitch bend up while held, glides back on release\nKEYNOTE R1C2: Delete: hold it and tap a mini-sequencer step to clear that step. With Controls Shift: clear the whole selected sequence\nKEYNOTE R1C3: Controls Shift: hold it and the control keys (rows 1-2, columns 9-10) do their Shift job\nKEYNOTE R1C4: Play / stop (CC 85 play, CC 86 stop) and the internal clock. On layer 1 page 1 it also restarts the mini sequencer\nKEYNOTE R1C5: Board record: the mini sequencer records the drums and pianos you play while it runs. Flashes red while on. Shift: Ableton record (CC 87)\nKEYNOTE R1C6: MIDI channel for the whole board. Hold it and use the arrows: up / down = small step, right / left = big step. Pages and keyboards with their own channel keep it\nKEYNOTE R1C7: Scale. Hold it: up / down = next / previous scale, right / left = Western / Non-Western bank. Shows the 2-letter scale name\nKEYNOTE R1C8: Octave / transpose for everything. Hold it and use the arrows: up / down = small step, right / left = big step. (up/down 1 semitone, right/left 1 octave)\nKEYNOTE R1C9: Arrow right (big step). With Controls Shift: page up (layer 1 has 7 pages, layer 2 has 4, layer 3 has 3, layer 4 has 5). Always an arrow, never replaced by a page\nKEYNOTE R1C10: Arrow up (small step). With Controls Shift: next main layer\nKEYNOTE R2C1: Pitch bend down\nKEYNOTE R2C2: Copy the selected mini sequence. Controls Shift + this key: paste, then tap the first step\nKEYNOTE R2C3: Undo (Ctrl+Z). Shift: Redo (Ctrl+Y)\nKEYNOTE R2C4: Scale quantize on/off: out-of-scale notes snap into the scale. Shift: Ableton Quantize (Ctrl+U)\nKEYNOTE R2C5: Tap tempo (CC 88) + internal tempo\nKEYNOTE R2C6: Volume (CC 7) of the board channel. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R2C7: Tempo. Hold it and use the arrows: up / down = small step, right / left = big step. (up/down 1 BPM, right/left 10 BPM). Sends CC 89 relative to Ableton\nKEYNOTE R2C8: Root note. Hold it and use the arrows: up / down = small step, right / left = big step. (up/down 1 semitone, right/left a fifth)\nKEYNOTE R2C9: Arrow left (big step). With Controls Shift: page down\nKEYNOTE R2C10: Arrow down (small step). With Controls Shift: previous main layer\nKEYNOTE R3C9: Knob CC 20 down (left = down, right = up). Default on every page; a page can give these 4 keys its own jobs (octave, track modes, ...)\nKEYNOTE R3C10: Knob CC 20 up\nKEYNOTE R4C9: Knob CC 21 down\nKEYNOTE R4C10: Knob CC 21 up\nKEYNOTE R5C9: Knob CC 22 down (left = down, right = up everywhere)\nKEYNOTE R9C9: Effects key. Tap = effects on / off for everything you play. Hold a note (or a step recorder track step) and tap = only that keyboard or track. Hold = rows 3-8 show the effects: columns 1-2 = 12 effects (tap = edit its faders, double-tap = on / off), columns 3-8 = its faders. Lit while the keyboard or track you played last has effects on\nKEYNOTE R9C10: Effects off on every keyboard and track. Effects key + this key = MIDI kill switch (all notes off, stops everything)\nKEYNOTE R10C9: Arpeggiator: double-tap = on / off for everything you play. Hold = the top 4 grid rows show the arp settings\nKEYNOTE R10C10: Hold = sustain (CC 64). Double-tap = latch on / off (notes keep playing after you let go; press one again to stop it)\n\nCONTROLS SHIFT\n     C1        C2        C3        C4        C5        C6        C7        C8        C9        C10\nR1   ~         ~         ~         ~         REC       ~         ~         ~         PG+       L+\nR2   ~         ~         KB:CTRL+Y KB:CTRL+U ~         ~         ~         ~         PG-       L-\nR3   .         .         .         .         .         .         .         .         ~         ~\nR4   .         .         .         .         .         .         .         .         ~         ~\nR5   .         .         .         .         .         .         .         .         ~         ~\nR6   .         .         .         .         .         .         .         .         ~         ~\nR7   .         .         .         .         .         .         .         .         ~         ~\nR8   .         .         .         .         .         .         .         .         ~         ~\nR9   .         .         .         .         .         .         .         .         K26-      K26+\nR10  .         .         .         .         .         .         .         .         ~         ~\nKEYNOTE R1C5: Ableton record (CC 87)\nKEYNOTE R1C9: Page up\nKEYNOTE R1C10: Next main layer\nKEYNOTE R2C3: Redo (Ctrl+Y)\nKEYNOTE R2C4: Ableton Quantize (Ctrl+U)\nKEYNOTE R2C9: Page down\nKEYNOTE R2C10: Previous main layer\nKEYNOTE R9C9: Knob CC 26 down\nKEYNOTE R9C10: Knob CC 26 up\n\nLAYER 1 PAGE 1 \"Composer\"\ncolors: #00e5ff #ff7a00 #ffd000 #ff00dd\nchannel: global\nled: auto\npurpose: Composer: drums top-left, 16-step mini sequencer top-right (drums or either piano), upper piano and lower piano with their own controls\nled_note: Drums main color; the drum being sequenced color 4. Steps color 4 (or the piano color in piano mode), playhead white. Upper piano color 2, lower piano color 3 (black keys dimmer). Control keys inside the grid off until pressed or switched on (orange).\n     C1     C2     C3     C4     C5     C6     C7     C8     C9     C10\nR1   ~      ~      ~      ~      ~      ~      ~      ~      ~      ~\nR2   ~      ~      ~      ~      ~      ~      ~      ~      ~      ~\nR3   Z19N48 Z19N49 Z19N50 Z19N51 MS0    MS1    MS2    MS3    X-     X+\nR4   Z19N44 Z19N45 Z19N46 Z19N47 MS4    MS5    MS6    MS7    ~      ~\nR5   Z19N40 Z19N41 Z19N42 Z19N43 MS8    MS9    MS10   MS11   ~      ~\nR6   Z19N36 Z19N37 Z19N38 Z19N39 MS12   MS13   MS14   MS15   ~      ~\nR7   Z0N61  Z0N63  ZC0    Z0N66  Z0N68  Z0N70  -      ZO0    ZC19   ST\nR8   Z0N60  Z0N62  Z0N64  Z0N65  Z0N67  Z0N69  Z0N71  Z0N72  ~      ~\nR9   Z1N49  Z1N51  ZC1    Z1N54  Z1N56  Z1N58  ZK1    ZO1    ~      ~\nR10  Z1N48  Z1N50  Z1N52  Z1N53  Z1N55  Z1N57  Z1N59  Z1N60  ~      ~\nKEYNOTE R3C1: Drum pads (zone 19): their own channel (R7C9). Not moved by the octave keys\nKEYNOTE R3C9: Octave / transpose down (all keyboards of this layer; drums stay)\nKEYNOTE R3C10: Octave / transpose up\nKEYNOTE R6C5: Mini sequencer: 16 steps in reading order. Drums: steps of the drum pad you tapped last. Pianos: tap a step, then press notes; hold a step and use right / left to change its length. Stops when you leave this page\nKEYNOTE R7C3: Upper piano MIDI channel. Hold it and use the arrows: up / down = small step, right / left = big step. G = follows the board channel\nKEYNOTE R7C8: Upper piano octave. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R7C9: Drum channel. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R7C10: Sequence target: hold it and press a drum pad, an upper-piano key or a lower-piano key. The mini sequencer then edits that part\nKEYNOTE R9C3: Lower piano MIDI channel. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R9C7: Lower piano chords: tap = on / off; hold it and use the arrows to change the chord type\nKEYNOTE R9C8: Lower piano octave. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R10C1: GRID: drums + 16-step mini sequencer on top; two piano zones with their own channel, octave and chords below\n\nLAYER 1 PAGE 2 \"Chromatic\"\ncolors: #ff0019 #2f6bff #ffffff #ffb000\nchannel: global\nled: scale\npurpose: Isomorphic chromatic keyboard: +1 semitone per column, +8 per row\nled_note: Root notes in the main color, other notes of the scale in color 2, notes outside the scale off. Held pads white.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   T92   T93   T94   T95   T96   T97   T98   T99   ~     ~\nR4   T84   T85   T86   T87   T88   T89   T90   T91   ~     ~\nR5   T76   T77   T78   T79   T80   T81   T82   T83   ~     ~\nR6   T68   T69   T70   T71   T72   T73   T74   T75   ~     ~\nR7   T60   T61   T62   T63   T64   T65   T66   T67   ~     ~\nR8   T52   T53   T54   T55   T56   T57   T58   T59   ~     ~\nR9   T44   T45   T46   T47   T48   T49   T50   T51   ~     ~\nR10  T36   T37   T38   T39   T40   T41   T42   T43   ~     ~\nKEYNOTE R10C1: GRID: chromatic, lit by the selected scale and root\n\nLAYER 1 PAGE 3 \"In key\"\ncolors: #ff6600 #3070ff #ffffff #00ff80\nchannel: global\nled: auto\npurpose: Single scale in sequence: every pad is in the selected scale and root; +1 scale step per column, +3 steps per row\nled_note: Root notes in the main color, all other pads color 2 (every pad is in the scale). Held pads white.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   S21   S22   S23   S24   S25   S26   S27   S28   ~     ~\nR4   S18   S19   S20   S21   S22   S23   S24   S25   ~     ~\nR5   S15   S16   S17   S18   S19   S20   S21   S22   ~     ~\nR6   S12   S13   S14   S15   S16   S17   S18   S19   ~     ~\nR7   S9    S10   S11   S12   S13   S14   S15   S16   ~     ~\nR8   S6    S7    S8    S9    S10   S11   S12   S13   ~     ~\nR9   S3    S4    S5    S6    S7    S8    S9    S10   ~     ~\nR10  S0    S1    S2    S3    S4    S5    S6    S7    ~     ~\nKEYNOTE R10C1: GRID: in-key layout, follows the scale and root keys\n\nLAYER 1 PAGE 4 \"Chords\"\ncolors: #fbff00 #6040ff #ffffff #00ffa0\nchannel: global\nled: auto\npurpose: Chord mode (Launchpad Pro style): columns = scale degrees I-VIII, rows from bottom = triad, 1st inv, 2nd inv, 7th, 9th, sus2, sus4, power\nled_note: Columns I and VIII in the main color, the other columns color 2. Held chords white.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   CH56  CH57  CH58  CH59  CH60  CH61  CH62  CH63  ~     ~\nR4   CH48  CH49  CH50  CH51  CH52  CH53  CH54  CH55  ~     ~\nR5   CH40  CH41  CH42  CH43  CH44  CH45  CH46  CH47  ~     ~\nR6   CH32  CH33  CH34  CH35  CH36  CH37  CH38  CH39  ~     ~\nR7   CH24  CH25  CH26  CH27  CH28  CH29  CH30  CH31  ~     ~\nR8   CH16  CH17  CH18  CH19  CH20  CH21  CH22  CH23  ~     ~\nR9   CH8   CH9   CH10  CH11  CH12  CH13  CH14  CH15  ~     ~\nR10  CH0   CH1   CH2   CH3   CH4   CH5   CH6   CH7   ~     ~\nKEYNOTE R10C1: GRID: one chord per pad, built from the selected scale and root\n\nLAYER 1 PAGE 5 \"Harmony\"\ncolors: #ff2fa0 #5070ff #00e0a0 #a04010\nchannel: global\nled: auto\npurpose: Experimental keyboard. Left half: chords of the key (rows I, II, III, IV, V, VI, VII, I from the bottom; columns triad, 7th, 9th, sus4). Right half: melody in the scale (+1 step per column, +4 per row) lit by the chord you hold\nled_note: Chords: row I main color, other rows dim; held chord white; likely next chords blink in color 3. Melody: chord root main, other chord tones color 2, good tensions color 3, avoid notes color 4 (dim).\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   CK28  CK29  CK30  CK31  MK28  MK29  MK30  MK31  >C    >C\nR4   CK24  CK25  CK26  CK27  MK24  MK25  MK26  MK27  >C    >C\nR5   CK20  CK21  CK22  CK23  MK20  MK21  MK22  MK23  >C    >C\nR6   CK16  CK17  CK18  CK19  MK16  MK17  MK18  MK19  >C    >C\nR7   CK12  CK13  CK14  CK15  MK12  MK13  MK14  MK15  >C    >C\nR8   CK8   CK9   CK10  CK11  MK8   MK9   MK10  MK11  >C    >C\nR9   CK4   CK5   CK6   CK7   MK4   MK5   MK6   MK7   >C    >C\nR10  CK0   CK1   CK2   CK3   MK0   MK1   MK2   MK3   ~     ~\nKEYNOTE R10C1: Chord keys: degree I (bottom row) to VII, then I an octave up. Columns: triad, 7th, 9th, sus4. Chord octave: hold any chord pad + OCT (R1C8) + arrows\nKEYNOTE R10C5: Melody keys: only scale notes. Right = next scale note, up = 4 scale notes higher. Melody octave: hold any melody pad + OCT (R1C8) + arrows\n\nLAYER 1 PAGE 6 \"Multi channel\"\ncolors: #ff2020 #ff8000 #ffe000 #80ff00\nchannel: global\nled: auto\npurpose: 4 one-octave keyboards (2 rows each), each on its own channel with channel, octave and volume keys. KP- / KP+ pick 4 banks = 16 keyboards, starting on channels 1-16\nled_note: Keyboard 1-4 use the 4 palette colors (white keys bright, black keys dim). Zone keys off until held (orange).\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   Z4N61 Z4N63 ZC4   Z4N66 Z4N68 Z4N70 ZO4   ZV4   ~     ~\nR4   Z4N60 Z4N62 Z4N64 Z4N65 Z4N67 Z4N69 Z4N71 Z4N72 ~     ~\nR5   Z5N61 Z5N63 ZC5   Z5N66 Z5N68 Z5N70 ZO5   ZV5   KP-   KP+\nR6   Z5N60 Z5N62 Z5N64 Z5N65 Z5N67 Z5N69 Z5N71 Z5N72 ~     ~\nR7   Z6N61 Z6N63 ZC6   Z6N66 Z6N68 Z6N70 ZO6   ZV6   >C    >C\nR8   Z6N60 Z6N62 Z6N64 Z6N65 Z6N67 Z6N69 Z6N71 Z6N72 ~     ~\nR9   Z7N61 Z7N63 ZC7   Z7N66 Z7N68 Z7N70 ZO7   ZV7   ~     ~\nR10  Z7N60 Z7N62 Z7N64 Z7N65 Z7N67 Z7N69 Z7N71 Z7N72 ~     ~\nKEYNOTE R3C3: Keyboard 1 channel. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R3C7: Keyboard 1 octave. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R3C8: Keyboard 1 volume (CC 7 on its channel). Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R5C3: Keyboard 2 channel. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R5C7: Keyboard 2 octave. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R5C8: Keyboard 2 volume (CC 7 on its channel). Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R5C9: Previous keyboard bank (bank 1 = channels 1-4 ... bank 4 = channels 13-16)\nKEYNOTE R5C10: Next keyboard bank\nKEYNOTE R7C3: Keyboard 3 channel. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R7C7: Keyboard 3 octave. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R7C8: Keyboard 3 volume (CC 7 on its channel). Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R9C3: Keyboard 4 channel. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R9C7: Keyboard 4 octave. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R9C8: Keyboard 4 volume (CC 7 on its channel). Hold it and use the arrows: up / down = small step, right / left = big step.\n\nLAYER 1 PAGE 7 \"Microtonal\"\ncolors: #ff40c0 #4080ff #00e0c0 #ffd000\nchannel: global\nled: auto\npurpose: Isomorphic microtonal keyboard with 6 tunings: 24-EDO, 19-EDO, 31-EDO, just intonation, harmonic series, Bohlen-Pierce. Notes go out as MPE (one channel per note + pitch bend)\nled_note: Root (and its octaves) main color, pure fifth color 4, notes that match the normal 12 notes color 2, other microtones color 3. Held pads white.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   MT56  MT57  MT58  MT59  MT60  MT61  MT62  MT63  ~     ~\nR4   MT48  MT49  MT50  MT51  MT52  MT53  MT54  MT55  ~     ~\nR5   MT40  MT41  MT42  MT43  MT44  MT45  MT46  MT47  TU-   TU+\nR6   MT32  MT33  MT34  MT35  MT36  MT37  MT38  MT39  ~     ~\nR7   MT24  MT25  MT26  MT27  MT28  MT29  MT30  MT31  >C    >C\nR8   MT16  MT17  MT18  MT19  MT20  MT21  MT22  MT23  ~     ~\nR9   MT8   MT9   MT10  MT11  MT12  MT13  MT14  MT15  ~     ~\nR10  MT0   MT1   MT2   MT3   MT4   MT5   MT6   MT7   ~     ~\nKEYNOTE R5C9: Previous tuning (shows its code on the grid)\nKEYNOTE R5C10: Next tuning\nKEYNOTE R10C1: MPE: in Ableton set the track input to the C100 with MPE on, and use an MPE instrument (Wavetable, Drift, Meld, Sampler). Bend range = bend_range in SETTINGS\n\nLAYER 2 PAGE 1 \"Launcher\"\ncolors: #00eeff #00ff60 #ff3030 #ffb000\nchannel: 16\nled: auto\npurpose: Ableton clip launcher (Launchpad Pro style). Clips = notes 0-63 on channel 16, map them with MIDI Map. Row 2 = track buttons. Controls Shift + row 1 = track modes\nled_note: Clip pads dim main color. In Volume / Pan / Send modes the grid becomes 8 faders (lit bars). Active mode key orange. Held pads white.\n     C1        C2        C3        C4        C5        C6        C7        C8        C9        C10\nR1   ~         ~         ~         ~         ~         ~         ~         ~         ~         ~\nR2   TR1       TR2       TR3       TR4       TR5       TR6       TR7       TR8       ~         ~\nR3   CL56      CL57      CL58      CL59      CL60      CL61      CL62      CL63      TM1       TM2\nR4   CL48      CL49      CL50      CL51      CL52      CL53      CL54      CL55      TM3       TM0\nR5   CL40      CL41      CL42      CL43      CL44      CL45      CL46      CL47      ~         ~\nR6   CL32      CL33      CL34      CL35      CL36      CL37      CL38      CL39      KB:CTRL+D KB:DEL\nR7   CL24      CL25      CL26      CL27      CL28      CL29      CL30      CL31      K22-      K22+\nR8   CL16      CL17      CL18      CL19      CL20      CL21      CL22      CL23      K23-      K23+\nR9   CL8       CL9       CL10      CL11      CL12      CL13      CL14      CL15      K24-      K24+\nR10  CL0       CL1       CL2       CL3       CL4       CL5       CL6       CL7       K25-      K25+\nKEYNOTE R2C1: Track 1 (notes 64-71 select, 72-79 arm, 80-87 solo, 88-95 mute, ch 16)\nKEYNOTE R3C9: Track mode arm\nKEYNOTE R3C10: Track mode solo\nKEYNOTE R4C9: Track mode mute\nKEYNOTE R4C10: Track mode select (Controls Shift + row 1 still works too)\nKEYNOTE R6C9: Duplicate (Ctrl+D)\nKEYNOTE R6C10: Delete / clear (Del)\nKEYNOTE R10C1: GRID: Ableton launcher. No light feedback from Ableton yet\nSHIFT\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   TM1   TM2   ~     TM3   TM4   TM5   TM6   TM7   ~     ~\nR2   TM0   ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   .     .     .     .     .     .     .     .     ~     ~\nR4   .     .     .     .     .     .     .     .     ~     ~\nR5   .     .     .     .     .     .     .     .     ~     ~\nR6   .     .     .     .     .     .     .     .     ~     ~\nR7   .     .     .     .     .     .     .     .     ~     ~\nR8   .     .     .     .     .     .     .     .     ~     ~\nR9   .     .     .     .     .     .     .     .     ~     ~\nR10  .     .     .     .     .     .     .     .     ~     ~\nKEYNOTE R1C1 (shift): Mode: track buttons = arm\nKEYNOTE R1C2 (shift): Mode: track buttons = solo\nKEYNOTE R1C4 (shift): Mode: track buttons = mute\nKEYNOTE R1C5 (shift): Mode: grid = 8 volume faders (CC 40-47)\nKEYNOTE R1C6 (shift): Mode: grid = 8 pan faders (CC 48-55)\nKEYNOTE R1C7 (shift): Mode: grid = send A faders (CC 56-63)\nKEYNOTE R1C8 (shift): Mode: grid = send B faders (CC 72-79)\nKEYNOTE R2C1 (shift): Mode: back to select. Press a lit mode key again also goes back\n\nLAYER 2 PAGE 2 \"XY effects\"\ncolors: #b141fb #ffffff #00e5ff #ff00aa\nchannel: global\nled: auto\npurpose: Kaoss Pad style: X = CC16, Y = CC17, touch = CC18, effect select = CC19 (row 2)\nled_note: Grid in the main color, the pad nearest the XY position white.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   XF0   XF1   XF2   XF3   XF4   XF5   XF6   XF7   ~     ~\nR3   XY56  XY57  XY58  XY59  XY60  XY61  XY62  XY63  >C    >C\nR4   XY48  XY49  XY50  XY51  XY52  XY53  XY54  XY55  >C    >C\nR5   XY40  XY41  XY42  XY43  XY44  XY45  XY46  XY47  XH    -\nR6   XY32  XY33  XY34  XY35  XY36  XY37  XY38  XY39  K27-  K27+\nR7   XY24  XY25  XY26  XY27  XY28  XY29  XY30  XY31  K28-  K28+\nR8   XY16  XY17  XY18  XY19  XY20  XY21  XY22  XY23  K29-  K29+\nR9   XY8   XY9   XY10  XY11  XY12  XY13  XY14  XY15  K30-  K30+\nR10  XY0   XY1   XY2   XY3   XY4   XY5   XY6   XY7   ~     ~\nKEYNOTE R5C9: XY hold: keeps the effect on after you let go\n\nLAYER 2 PAGE 3 \"Macros (with piano)\"\ncolors: #00d165 #ffffff #00a0ff #ff8000\nchannel: 16\nled: auto\npurpose: Support page while you play a piano keyboard: 8 vertical faders for rack macros 1-8 (CC 102-109, ch 16). Row 2 stays the track buttons\nled_note: Each column is a fader: lit up to its current value.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 >C    >C\nR4   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 >C    >C\nR5   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~\nR6   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~\nR7   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~\nR8   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~\nR9   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~\nR10  FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~\nKEYNOTE R10C1: GRID: tap a pad to set that macro: bottom row = 0, top row = 127\n\nLAYER 2 PAGE 4 \"Knobs and shortcuts\"\ncolors: #96ff2e #ffffff #00a0ff #ff8000\nchannel: 15\nled: off\npurpose: Navigate Ableton without mouse and keyboard: top 4 rows = Ableton shortcuts, bottom 4 rows = 16 knobs (CC 20-35 on channel 15)\nled_note: Pads off; they light while pressed. Knob pairs: left key down, right key up.\n     C1              C2              C3              C4              C5              C6              C7              C8              C9              C10\nR1   ~               ~               ~               ~               ~               ~               ~               ~               ~               ~\nR2   ~               ~               ~               ~               ~               ~               ~               ~               ~               ~\nR3   KB:TAB          KB:SHIFT+TAB    KB:CTRL+ALT+B   KB:CTRL+ALT+L   KB:CTRL+ALT+M   KB:CTRL+M       KB:CTRL+K       KB:CTRL+F       >C              >C\nR4   KB:CTRL+T       KB:CTRL+SHIFT+T KB:CTRL+I       KB:CTRL+SHIFT+M KB:CTRL+R       KB:CTRL+G       KB:CTRL+D       KB:DEL          >C              >C\nR5   KB:CTRL+E       KB:CTRL+J       KB:CTRL+L       KB:CTRL+B       KB:CTRL+1       KB:CTRL+2       KB:CTRL+4       KB:CTRL+S       ~               ~\nR6   KB:SPACE        KB:SHIFT+SPACE  KB:F9           KB:ENTER        KB:ESC          KB:0            KB:MINUS        KB:EQUAL        ~               ~\nR7   K20-            K20+            K21-            K21+            K22-            K22+            K23-            K23+            ~               ~\nR8   K24-            K24+            K25-            K25+            K26-            K26+            K27-            K27+            ~               ~\nR9   K28-            K28+            K29-            K29+            K30-            K30+            K31-            K31+            ~               ~\nR10  K32-            K32+            K33-            K33+            K34-            K34+            K35-            K35+            ~               ~\nKEYNOTE R3C1: Session / Arrangement\nKEYNOTE R3C2: Clip / Device view\nKEYNOTE R3C3: Browser\nKEYNOTE R3C4: Detail view\nKEYNOTE R3C5: Mixer\nKEYNOTE R3C6: MIDI map mode\nKEYNOTE R3C7: Key map mode\nKEYNOTE R3C8: Follow\nKEYNOTE R4C1: New audio track\nKEYNOTE R4C2: New MIDI track\nKEYNOTE R4C3: Insert scene\nKEYNOTE R4C4: Insert MIDI clip\nKEYNOTE R4C5: Rename\nKEYNOTE R4C6: Group tracks\nKEYNOTE R4C7: Duplicate\nKEYNOTE R4C8: Delete\nKEYNOTE R5C1: Split\nKEYNOTE R5C2: Consolidate\nKEYNOTE R5C3: Loop selection\nKEYNOTE R5C4: Draw mode\nKEYNOTE R5C5: Narrow grid\nKEYNOTE R5C6: Widen grid\nKEYNOTE R5C7: Snap to grid\nKEYNOTE R5C8: Save\nKEYNOTE R6C1: Play / stop\nKEYNOTE R6C2: Continue\nKEYNOTE R6C3: Arrangement record\nKEYNOTE R6C4: Launch selected\nKEYNOTE R6C5: Escape\nKEYNOTE R6C6: Clip on / off\nKEYNOTE R6C7: Zoom out\nKEYNOTE R6C8: Zoom in\nKEYNOTE R7C1: Knob 1 down (CC 20, ch 15). Knobs: CC 20-35, two keys each\n\nLAYER 3 PAGE 1 \"Step recorder\"\ncolors: #2fa8ff #3ddc84 #f5d142 #ff5fa2\nchannel: global\nled: auto\npurpose: 4-track step recorder, 16 or 32 steps (BARS 1-2) + mini drum sequencer. Rows 3-6 = tracks 1-4 (8 steps per step page, SG flicks the pages). Rows 7-10 = keyboards on 3 pages (SK): 2 pianos, 2 more pianos, drum pads + drum steps. Board REC + Play/Stop: stopped = step record, playing = live record into the playing step. Chords and notes played together fill one step. Each track has its own rate, swing and direction (Controls Shift keys); each step its own velocity, probability and ratchet (edit modes). Drum pads record only into the drum steps. Plays only while this page is on screen\nled_note: Track steps in the track color (track 1 main, 2 color 2, 3 color 3, 4 color 4); the step cursor flashes white; the playhead is white; a muted track is dim; steps beyond the length are off. Edit modes: rows 3-6 become 8 faders with 4 levels: velocity in the track color (accent gold), probability violet, ratchet lime. Piano white keys bright, black keys dim. Control keys that change with the layer or Controls Shift are cyan; orange while held or on.\n     C1     C2     C3     C4     C5     C6     C7     C8     C9     C10\nR1   ~      ~      ~      ~      ~      ~      ~      ~      ~      ~\nR2   ~      ~      ~      ~      ~      ~      ~      ~      ~      ~\nR3   SS0    SS1    SS2    SS3    SS4    SS5    SS6    SS7    X-     X+\nR4   SS8    SS9    SS10   SS11   SS12   SS13   SS14   SS15   >C     >C\nR5   SS16   SS17   SS18   SS19   SS20   SS21   SS22   SS23   SM     ZC19\nR6   SS24   SS25   SS26   SS27   SS28   SS29   SS30   SS31   BARS   SK\nR7   Z20N61 Z20N63 ZC20   Z20N66 Z20N68 Z20N70 ZO20   SV     SR     TI\nR8   Z20N60 Z20N62 Z20N64 Z20N65 Z20N67 Z20N69 Z20N71 Z20N72 SG     LN\nR9   Z21N49 Z21N51 ZC21   Z21N54 Z21N56 Z21N58 ZO21   ZT21   ~      ~\nR10  Z21N48 Z21N50 Z21N52 Z21N53 Z21N55 Z21N57 Z21N59 Z21N60 ~      ~\nKEYNOTE R3C1: Tracks 1-4 = rows 3-6, 8 steps per step page (SG R9C9: 4 pages at 2 bars, 2 pages at 1 bar). Tap a step: the flashing white step cursor goes there. The arrow keys (top right) move it too: left / right = step, up / down = track. Step record: play, each note or chord fills the next step; REST / TIE; DEL = clear a step (Controls Shift: clear all)\nKEYNOTE R3C9: Octave / transpose down\nKEYNOTE R3C10: Octave / transpose up\nKEYNOTE R4C9: Knob CC 21 down (from the Controls table; R4C10 = up)\nKEYNOTE R5C9: Mute: mutes / unmutes the track where the flashing step cursor is\nKEYNOTE R5C10: Drum channel (zone 19, shared with layer 1 page 1). Hold it and use the arrows\nKEYNOTE R6C9: Bars: hold it and use the arrows. 1 bar = 16 steps, 2 bars = 32 steps, for all tracks and the drum steps. Changing it resets every track to the full length\nKEYNOTE R6C10: Keyboard page 1-3: hold it and use the arrows (or PG keys). Page 1 = piano + chord piano (zones 20, 21). Page 2 = two more (zones 22, 23). Page 3 = drum pads (bottom left, zone 19) + 16 drum steps (bottom right)\nKEYNOTE R7C3: Upper piano MIDI channel (hold + arrows)\nKEYNOTE R7C7: Upper piano octave (hold + arrows)\nKEYNOTE R7C8: Edit modes: double-tap = rows 3-6 become 8 faders (one per step) for the selected track. A single tap then switches what they edit: velocity (VE: ghost 25, low 60, normal 100, accent 127; track color, accent gold) > probability (PR: 25 / 50 / 75 / 100%, violet) > ratchet (RA: 1-4 hits in the step, lime). Double-tap again to leave. Keyboard pages 1-2 only\nKEYNOTE R7C9: Rest: empty step, move on (step record)\nKEYNOTE R7C10: Tie: hold the previous note through this step (step record)\nKEYNOTE R8C9: Step page: tap = next 8-step page on the tracks (4 pages at 2 bars) and the matching 16 drum steps (2 pages)\nKEYNOTE R8C10: Track length (hold + arrows), up to 16 or 32 steps\nKEYNOTE R9C3: Chord piano MIDI channel (hold + arrows)\nKEYNOTE R9C7: Chord piano octave (hold + arrows)\nKEYNOTE R9C8: Chord piano chord type (hold + arrows): auto (in key), major, minor, 7, maj7, m7, sus4, power\nKEYNOTE R10C1: GRID: tracks on top, keyboards below. Keyboard pages 2 and 3 swap rows 7-10 (see R6C10). Drum steps follow the same bars and tempo as the tracks\nSHIFT\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   .     .     .     .     .     .     .     .     ~     ~\nR4   .     .     .     .     .     .     .     .     ~     ~\nR5   .     .     .     .     .     .     .     .     SRT   ~\nR6   .     .     .     .     .     .     .     .     SSW   ~\nR7   .     .     .     .     .     .     .     .     ~     ~\nR8   .     .     .     .     .     .     .     .     MET   SDR\nR9   .     .     .     .     .     .     .     .     ~     ~\nR10  .     .     .     .     .     .     .     .     ~     ~\nKEYNOTE R5C9 (shift): Track rate (track under the cursor): hold + arrows. Up / down = 1/8, 1/16, 1/32; right / left = triplet on / off (3 dots on the grid = triplet)\nKEYNOTE R6C9 (shift): Track swing: hold + arrows, 0-50% (every second step is late)\nKEYNOTE R8C9 (shift): Metronome on / off (clicks on every beat while playing)\nKEYNOTE R8C10 (shift): Track direction: hold + arrows. FW forward, RV reverse, PP ping-pong, RN random\n\nLAYER 3 PAGE 2 \"Drum sequencer\"\ncolors: #40a0ff #ffffff #ff8000 #ff00dd\nchannel: global\nled: auto\npurpose: 8 drum lanes x 16 steps (lane 1 = bottom row = note 36 ... lane 8 = note 43). Runs with Play / Stop on the internal clock (or Ableton clock)\nled_note: Steps that are on in the main color, playhead column color 3, off steps dark.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   SQ56  SQ57  SQ58  SQ59  SQ60  SQ61  SQ62  SQ63  >C    >C\nR4   SQ48  SQ49  SQ50  SQ51  SQ52  SQ53  SQ54  SQ55  >C    >C\nR5   SQ40  SQ41  SQ42  SQ43  SQ44  SQ45  SQ46  SQ47  SP0   SP1\nR6   SQ32  SQ33  SQ34  SQ35  SQ36  SQ37  SQ38  SQ39  >C    >C\nR7   SQ24  SQ25  SQ26  SQ27  SQ28  SQ29  SQ30  SQ31  >C    >C\nR8   SQ16  SQ17  SQ18  SQ19  SQ20  SQ21  SQ22  SQ23  >C    >C\nR9   SQ8   SQ9   SQ10  SQ11  SQ12  SQ13  SQ14  SQ15  >C    >C\nR10  SQ0   SQ1   SQ2   SQ3   SQ4   SQ5   SQ6   SQ7   ~     ~\nKEYNOTE R5C9: Show steps 1-8\nKEYNOTE R5C10: Show steps 9-16\n\nLAYER 3 PAGE 3 \"Euclidean\"\ncolors: #a0ff40 #40c0ff #ffffff #ff8000\nchannel: global\nled: auto\npurpose: Euclidean drums (Polygene style): 8 lanes (notes 36-43, bottom row = lane 1), each up to 16 steps on the 1/16 clock with its own Length, Hits, Shift and Variation. R1C1 / R2C1 pick the setting (Controls Shift: Shift / Variation); the two keys at the right of each lane change it (left down, right up). The arrows show steps 1-8 / 9-16. Plays only while this page is on screen\nled_note: Hits in the lane color (lanes alternate main color / color 2), empty steps dim, steps past the length off, the playing step white. The selected setting key is orange.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   EP0   ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   EP1   ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   EU56  EU57  EU58  EU59  EU60  EU61  EU62  EU63  EK14  EK15\nR4   EU48  EU49  EU50  EU51  EU52  EU53  EU54  EU55  EK12  EK13\nR5   EU40  EU41  EU42  EU43  EU44  EU45  EU46  EU47  EK10  EK11\nR6   EU32  EU33  EU34  EU35  EU36  EU37  EU38  EU39  EK8   EK9\nR7   EU24  EU25  EU26  EU27  EU28  EU29  EU30  EU31  EK6   EK7\nR8   EU16  EU17  EU18  EU19  EU20  EU21  EU22  EU23  EK4   EK5\nR9   EU8   EU9   EU10  EU11  EU12  EU13  EU14  EU15  EK2   EK3\nR10  EU0   EU1   EU2   EU3   EU4   EU5   EU6   EU7   EK0   EK1\nKEYNOTE R1C1: Lane keys change the Length (1-16 steps)\nKEYNOTE R2C1: Lane keys change the Hits (0 up to the length, spread as evenly as possible)\nKEYNOTE R10C1: Tap a step = lane length up to that step. Arrows: right = steps 9-16, left = steps 1-8\nKEYNOTE R10C9: Lane 1 down / up: the two keys at the right of every lane change the selected setting (R1C1 / R2C1)\nSHIFT\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   EP2   ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   EP3   ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   .     .     .     .     .     .     .     .     ~     ~\nR4   .     .     .     .     .     .     .     .     ~     ~\nR5   .     .     .     .     .     .     .     .     ~     ~\nR6   .     .     .     .     .     .     .     .     ~     ~\nR7   .     .     .     .     .     .     .     .     ~     ~\nR8   .     .     .     .     .     .     .     .     ~     ~\nR9   .     .     .     .     .     .     .     .     ~     ~\nR10  .     .     .     .     .     .     .     .     ~     ~\nKEYNOTE R1C1 (shift): Lane keys change the Shift (rotates the pattern)\nKEYNOTE R2C1 (shift): Lane keys change the Variation (0-100%: chance per step that a hit drops or a rest plays a ghost hit)\n\nLAYER 4 PAGE 1 \"Dynamic macros\"\ncolors: #ff2d55 #30d158 #ff9f0a #64d2ff\nchannel: global\nled: auto\npurpose: 4 macro slots that record and play back everything the board sends (MIDI and computer keys), from any page. Rows 1-4 = slots: rec, play/stop, overdub, loop, clear (hold), quantize, speed, mute. Rows 5-6 = 16 user pads. Rows 7-8 = one-octave piano. Recordings are lost when you unplug\nled_note: Rec red, play green (flashes at the start of each loop), overdub orange, loop main color, quantize color 3, speed color 4 (white = 2x), mute red. Empty slot: only rec lit (dim).\n     C1        C2        C3        C4        C5        C6        C7        C8        C9        C10\nR1   ~         ~         ~         ~         ~         ~         ~         ~         ~         ~\nR2   ~         ~         ~         ~         ~         ~         ~         ~         ~         ~\nR3   MC0       MC1       MC2       MC3       MC4       MC5       MC6       MC7       ~         ~\nR4   MC8       MC9       MC10      MC11      MC12      MC13      MC14      MC15      ~         ~\nR5   MC16      MC17      MC18      MC19      MC20      MC21      MC22      MC23      ~         ~\nR6   MC24      MC25      MC26      MC27      MC28      MC29      MC30      MC31      ~         ~\nR7   N36       N37       N38       N39       N40       N41       N42       N43       ~         ~\nR8   KB:CTRL+Z KB:CTRL+Y KB:CTRL+D KB:CTRL+E KB:CTRL+J KB:TAB    KB:SPACE  KB:ESC    ~         ~\nR9   Z3N61     Z3N63     ZC3       Z3N66     Z3N68     Z3N70     ZV3       ZO3       ~         ~\nR10  Z3N60     Z3N62     Z3N64     Z3N65     Z3N67     Z3N69     Z3N71     Z3N72     ~         ~\nKEYNOTE R3C1: Slot 1 record: press to start, press again to stop (then it plays)\nKEYNOTE R3C2: Slot 1 play / stop\nKEYNOTE R3C3: Slot 1 overdub: record on top while it plays\nKEYNOTE R3C4: Slot 1 loop on / off (off = play once)\nKEYNOTE R3C5: Slot 1 clear: hold half a second\nKEYNOTE R3C6: Slot 1 quantize to 1/16 on / off\nKEYNOTE R3C7: Slot 1 speed: 1/2, 1, 2\nKEYNOTE R3C8: Slot 1 mute\nKEYNOTE R7C1: User pads: set them to any note, CC or computer key in the planner\nKEYNOTE R9C3: Piano channel. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R9C7: Piano volume. Hold it and use the arrows: up / down = small step, right / left = big step.\nKEYNOTE R9C8: Piano octave. Hold it and use the arrows: up / down = small step, right / left = big step.\n\nLAYER 4 PAGE 2 \"Random walk\"\ncolors: #34c759 #5ac8fa #ffffff #ff9f0a\nchannel: global\nled: auto\npurpose: Random walk: a walker moves on the 8x8 grid every tick. X = pitch (scale degree 1-8 of the selected scale and root), Y = velocity or a CC. Tap a pad to put the walker there. Rows R3-R10 at the right = settings (left key down, right key up). Needs Play. Plays only while this page is on screen\nled_note: Walker white, its last 3 positions dimmer, the field dim in the main color.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   RW56  RW57  RW58  RW59  RW60  RW61  RW62  RW63  GS0   GS1\nR4   RW48  RW49  RW50  RW51  RW52  RW53  RW54  RW55  GS2   GS3\nR5   RW40  RW41  RW42  RW43  RW44  RW45  RW46  RW47  GS4   GS5\nR6   RW32  RW33  RW34  RW35  RW36  RW37  RW38  RW39  GS6   GS7\nR7   RW24  RW25  RW26  RW27  RW28  RW29  RW30  RW31  GS8   GS9\nR8   RW16  RW17  RW18  RW19  RW20  RW21  RW22  RW23  GS10  GS11\nR9   RW8   RW9   RW10  RW11  RW12  RW13  RW14  RW15  GS12  GS13\nR10  RW0   RW1   RW2   RW3   RW4   RW5   RW6   RW7   GS14  GS15\nKEYNOTE R3C1: Tap = move the walker there. X = scale degree, Y = velocity (bottom quiet, top loud) or the CC value\nKEYNOTE R3C9: Rate: 8 / 4 / 3 / 2 / 1 sixteenth steps per move\nKEYNOTE R4C9: Step size: cells per move (1-3)\nKEYNOTE R5C9: Pull to center: chance (0-100%) that the move goes toward the middle\nKEYNOTE R6C9: Y mode: left = velocity, right = CC\nKEYNOTE R7C9: CC number sent by Y in CC mode (0-127)\nKEYNOTE R8C9: Octave (-2 to +2)\nKEYNOTE R9C9: Gate: note length 25 / 50 / 75 / 100% of the tick\nKEYNOTE R10C9: Run: left = off, right = on\n\nLAYER 4 PAGE 3 \"Turing machine\"\ncolors: #ff375f #ffd60a #ffffff #64d2ff\nchannel: global\nled: auto\npurpose: Turing machine: a shift register (2-16 bits). Each tick the last bit comes round again; the lock fader sets the chance that it flips (100% = locked loop, 0% = random). The register value picks a note of the scale. Rows 3-4 = the bits (tap = flip), row 5 = lock fader, rows 6-10 = the last 8 notes as bars. Needs Play. Plays only while this page is on screen\nled_note: Bits lit in the main color, the feedback bit (last one) white, bits past the length off. Lock fader color 2. History bars color 4, newest bar color 3.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   TB0   TB1   TB2   TB3   TB4   TB5   TB6   TB7   GS0   GS1\nR4   TB8   TB9   TB10  TB11  TB12  TB13  TB14  TB15  GS2   GS3\nR5   TL0   TL1   TL2   TL3   TL4   TL5   TL6   TL7   GS4   GS5\nR6   TH32  TH33  TH34  TH35  TH36  TH37  TH38  TH39  GS6   GS7\nR7   TH24  TH25  TH26  TH27  TH28  TH29  TH30  TH31  GS8   GS9\nR8   TH16  TH17  TH18  TH19  TH20  TH21  TH22  TH23  GS10  GS11\nR9   TH8   TH9   TH10  TH11  TH12  TH13  TH14  TH15  GS12  GS13\nR10  TH0   TH1   TH2   TH3   TH4   TH5   TH6   TH7   GS14  GS15\nKEYNOTE R3C1: Register bits 1-8 (row 4 = bits 9-16): tap = flip a bit\nKEYNOTE R3C9: Rate: 8 / 4 / 3 / 2 / 1 sixteenth steps per tick\nKEYNOTE R4C9: Register length 2-16 bits\nKEYNOTE R5C1: Lock fader: 0 / 15 / 30 / 45 / 60 / 75 / 90 / 100%\nKEYNOTE R5C9: Range: 1-3 octaves of the scale\nKEYNOTE R6C1: History: the last 8 notes (oldest left, newest right), higher bar = higher note\nKEYNOTE R6C9: Octave (-2 to +2)\nKEYNOTE R7C9: Rests: chance (0-100%) that a tick is silent\nKEYNOTE R8C9: Gate: note length 25 / 50 / 75 / 100% of the tick\nKEYNOTE R9C9: Randomize the register (either key)\nKEYNOTE R10C9: Run: left = off, right = on\n\nLAYER 4 PAGE 4 \"Bouncing balls\"\ncolors: #30d158 #0a84ff #ffffff #ff453a\nchannel: global\nled: auto\npurpose: Bouncing balls: one ball per column; its note is the scale degree of the column. Tap a pad = drop a ball in that column from that height (bottom row = remove it). A ball hits the floor every 2 x height ticks, so the drop height sets the timing, and a higher drop is louder. Needs Play. Plays only while this page is on screen\nled_note: Ball white, the apex of its bounce dim, the floor row dim, columns alternate main color / color 2.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~\nR3   BB56  BB57  BB58  BB59  BB60  BB61  BB62  BB63  GS0   GS1\nR4   BB48  BB49  BB50  BB51  BB52  BB53  BB54  BB55  GS2   GS3\nR5   BB40  BB41  BB42  BB43  BB44  BB45  BB46  BB47  GS4   GS5\nR6   BB32  BB33  BB34  BB35  BB36  BB37  BB38  BB39  GS6   GS7\nR7   BB24  BB25  BB26  BB27  BB28  BB29  BB30  BB31  GS8   GS9\nR8   BB16  BB17  BB18  BB19  BB20  BB21  BB22  BB23  GS10  GS11\nR9   BB8   BB9   BB10  BB11  BB12  BB13  BB14  BB15  GS12  GS13\nR10  BB0   BB1   BB2   BB3   BB4   BB5   BB6   BB7   GS14  GS15\nKEYNOTE R3C1: Tap = drop a ball from this height (top row = 7). Bottom row = remove the ball\nKEYNOTE R3C9: Rate: 8 / 4 / 3 / 2 / 1 sixteenth steps per tick (a ball moves one row per tick)\nKEYNOTE R4C9: Decay: left = off, right = on (each bounce 1 row lower until the ball stops)\nKEYNOTE R5C9: Rain: chance of a random ball falling per tick (0-10, 3% each)\nKEYNOTE R6C9: Octave (-2 to +2)\nKEYNOTE R7C9: Span: scale degrees per column (1-3)\nKEYNOTE R8C9: Gate: note length 25 / 50 / 75 / 100% of the tick\nKEYNOTE R9C9: Clear all balls (either key)\nKEYNOTE R10C9: Run: left = off, right = on\n\nLAYER 4 PAGE 5 \"LFO test\"\ncolors: #bf5af2 #ff9f0a #30d158 #64d2ff\nchannel: global\nled: auto\npurpose: 4 LFOs for testing and MIDI mapping. Each LFO = 2 rows: the top row is its output meter, the bottom row shows the value of the selected setting. Pick the setting with R1C1 / R2C1 / R1C2 / R2C2 (Controls Shift: 4 more), then use the keys at the right of the LFO: upper key = coarse (8), lower key = fine (1); left down, right up. Settings: shape (sine, triangle, saw up, saw down, square, random), rate (tempo synced, 8 bars to 1/16), depth, center, target (0 = pitch bend, else CC number), channel (0 = board channel), run, phase. Runs with Play, only while this page is on screen. All LFOs start off\nled_note: LFO 1-4 in the 4 palette colors. Meter bright while the LFO runs (dim when off). Setting bar dim. The selected setting key is orange.\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   GP0   GP2   ~     ~     ~     ~     ~     ~     ~     ~\nR2   GP1   GP3   ~     ~     ~     ~     ~     ~     ~     ~\nR3   LV0   LV1   LV2   LV3   LV4   LV5   LV6   LV7   GS0   GS1\nR4   LV8   LV9   LV10  LV11  LV12  LV13  LV14  LV15  GS2   GS3\nR5   LV16  LV17  LV18  LV19  LV20  LV21  LV22  LV23  GS4   GS5\nR6   LV24  LV25  LV26  LV27  LV28  LV29  LV30  LV31  GS6   GS7\nR7   LV32  LV33  LV34  LV35  LV36  LV37  LV38  LV39  GS8   GS9\nR8   LV40  LV41  LV42  LV43  LV44  LV45  LV46  LV47  GS10  GS11\nR9   LV48  LV49  LV50  LV51  LV52  LV53  LV54  LV55  GS12  GS13\nR10  LV56  LV57  LV58  LV59  LV60  LV61  LV62  LV63  GS14  GS15\nKEYNOTE R1C1: Select Shape\nKEYNOTE R1C2: Select Depth\nKEYNOTE R2C1: Select Rate\nKEYNOTE R2C2: Select Center\nKEYNOTE R3C1: Rows 1 / 3 / 5 / 7 of the grid = LFO output meters, rows 2 / 4 / 6 / 8 = value of the selected setting\nKEYNOTE R3C9: LFO 1 coarse: change the selected setting (left down, right up)\nKEYNOTE R4C9: LFO 1 fine: change the selected setting (left down, right up)\nKEYNOTE R5C9: LFO 2 coarse: change the selected setting (left down, right up)\nKEYNOTE R6C9: LFO 2 fine: change the selected setting (left down, right up)\nKEYNOTE R7C9: LFO 3 coarse: change the selected setting (left down, right up)\nKEYNOTE R8C9: LFO 3 fine: change the selected setting (left down, right up)\nKEYNOTE R9C9: LFO 4 coarse: change the selected setting (left down, right up)\nKEYNOTE R10C9: LFO 4 fine: change the selected setting (left down, right up)\nSHIFT\n     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10\nR1   GP4   GP6   ~     ~     ~     ~     ~     ~     ~     ~\nR2   GP5   GP7   ~     ~     ~     ~     ~     ~     ~     ~\nR3   .     .     .     .     .     .     .     .     ~     ~\nR4   .     .     .     .     .     .     .     .     ~     ~\nR5   .     .     .     .     .     .     .     .     ~     ~\nR6   .     .     .     .     .     .     .     .     ~     ~\nR7   .     .     .     .     .     .     .     .     ~     ~\nR8   .     .     .     .     .     .     .     .     ~     ~\nR9   .     .     .     .     .     .     .     .     ~     ~\nR10  .     .     .     .     .     .     .     .     ~     ~\nKEYNOTE R1C1 (shift): Select Target (0 = pitch bend, else CC number)\nKEYNOTE R1C2 (shift): Select Run (left off, right on)\nKEYNOTE R2C1 (shift): Select Channel (0 = board channel)\nKEYNOTE R2C2 (shift): Select Phase (0-7)\n";
+const defaultState = () => parseExport(DEFAULT_EXPORT);
+// ===================== end of core =====================

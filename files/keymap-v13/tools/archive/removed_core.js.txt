@@ -1,0 +1,12 @@
+/* removed from core.js in v13: key types and constants of the archived pages. LAYER_PAGES was [7, 4, 4, 8]. The legend line in exportText also listed: EC MIDI echo, TB TL TH Turing machine bits / lock / history, BB bouncing balls, LV LFO display, GP LFO setting select */
+// Dynamic macros (layer 4 page 4): 8 functions per slot
+const MACRO_FUNCS = ['rec', 'play', 'overdub', 'loop', 'clear', 'quantize', 'speed', 'mute'];
+const MACRO_SPEEDS = [0.5, 1, 2];
+  TB:     {label: 'Turing machine register bit (tap = flip it)', pre: 'TB', num: 'Bit 0-15 (row 3 = bits 0-7, row 4 = bits 8-15)', min: 0, max: 15, group: 'Generative'},
+  TL:     {label: 'Turing machine lock fader (8 levels: 0% = random ... 100% = locked loop)', pre: 'TL', num: 'Level 0-7', min: 0, max: 7, group: 'Generative'},
+  TH:     {label: 'Turing machine note history (display only: last 8 notes as bars)', pre: 'TH', num: 'Cell 0-39 (row from bottom x 8 + column)', min: 0, max: 39, group: 'Generative'},
+  BB:     {label: 'Bouncing balls cell (tap = drop a ball in that column from that height; bottom row = remove)', pre: 'BB', num: 'Cell 0-63 (row from bottom x 8 + column)', min: 0, max: 63, group: 'Generative'},
+  LV:     {label: 'LFO display cell (display only: output meter and setting bar of each LFO)', pre: 'LV', num: 'Cell 0-63 (row from top x 8 + column; rows 1-2 = LFO 1 ... rows 7-8 = LFO 4)', min: 0, max: 63, group: 'Generative'},
+  EC:     {label: 'MIDI echo key: 0-1 time - / +, 2-3 feedback - / +, 4-5 repeats - / +, 6-7 length - / +, 8 echo on / off', pre: 'EC', num: 'Key 0-8', min: 0, max: 8, group: 'Generative', ctrl: true},
+  GP:     {label: 'LFO setting select: 0 shape, 1 rate, 2 depth, 3 center, 4 target, 5 channel, 6 run, 7 phase', pre: 'GP', num: 'Setting 0-7', min: 0, max: 7, group: 'Generative', ctrl: true},
+  MC:     {label: 'Macro slot function',                  pre: 'MC', num: 'slot x 8 + function (rec, play, overdub, loop, clear, quantize, speed, mute)', min: 0, max: 31, group: 'Dynamic macros'},

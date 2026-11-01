@@ -1,0 +1,58 @@
+HOW TO BUILD THE FIRMWARE ON THIS PC (no GitHub needed)
+=======================================================
+1. Double-click "Build C100.bat". It builds the newest folder in "files"
+   (keymap-v13, later keymap-v14, ...). It first makes keymap.c from the layout file
+   (c100-layout-vNN.txt in that folder), then compiles. Takes 1-3 minutes.
+   To change what keys do: edit the layout file (or paste a new export from the planner), then build.
+2. It saves the new .bin inside that same folder, for example
+   files\keymap-v12\keychron_c100_8k_midi_v12.bin
+   It refuses to save a file that is missing the 256 KB setting.
+3. If it says BUILD FAILED, copy the lines above it and send them to Claude.
+4. Then flash it with "Flash C100.bat" (below).
+Keep the Keychron source in C:\Users\Pichau\qmk_keychron (do not delete it).
+
+
+HOW TO FLASH THE C100
+=====================
+
+You need:
+- Flash C100.bat (in this folder)
+- the "flash tool" folder (has dfu-util.exe; do not move or rename it)
+- a firmware file (.bin), for example from your GitHub build
+
+
+1. GET THE FIRMWARE
+   Download the new .bin from GitHub to your Downloads folder.
+   (Or put it anywhere inside this project folder.)
+
+2. START THE FLASHER
+   Double-click "Flash C100.bat".
+   A list of firmware files appears, newest first.
+   Type the number of the one you want and press Enter.
+   (Just pressing Enter picks number 1, the newest.)
+
+   Shortcut: drag a .bin file onto "Flash C100.bat" to skip the list.
+
+3. PUT THE KEYBOARD IN FLASH MODE
+   a. Unplug the keyboard.
+   b. Hold the top-left key.
+   c. Plug it in, keep holding for 3 seconds, then let go.
+
+4. WAIT
+   The flasher finds the keyboard by itself and flashes it.
+   Do not unplug it while it says "Flashing".
+   When it says "Done", the keyboard restarts by itself.
+   Press any key to close the window.
+
+
+IF SOMETHING GOES WRONG
+- "did not appear in flash mode": unplug the keyboard and do step 3 again,
+  then run the flasher again. It waits up to 2 minutes.
+- "Flashing did not finish": put the keyboard in flash mode again and run
+  the flasher again. The board is safe: flash mode always works.
+- To go back to the original firmware, pick c100_8k_STOCK.bin from the list.
+- Flashing resets the Keychron Launcher layout to the one in the firmware.
+
+
+THE COMMAND IT RUNS (for reference)
+dfu-util.exe -d 2e3c:df11 -a 0 -s 0x08000000:leave -D "your-file.bin"

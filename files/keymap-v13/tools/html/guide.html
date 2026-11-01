@@ -1,0 +1,46 @@
+<details class="panel" id="guidePanel">
+  <summary>How to operate the new pages (v13)</summary>
+  <div class="small" style="line-height:1.55;margin-top:10px">
+    <p><b>Basics.</b> <b>Shift</b> = hold the Controls Shift key (R1C3). Keys at the right (columns 9-10) come in pairs: left key = down, right key = up; hold to repeat. Pages marked "needs Play" run on the 16th-note clock (press Play, R1C4). Layer 4 now has 3 pages (Random walk, Pond, Constellation), layer 3 has 4. The old layer 4 pages (Dynamic macros, Turing machine, Bouncing balls, LFO test, MIDI Echo) are archived in tools/archive.</p>
+
+    <p><b>Layer 4 page 1: Random walk (4 walkers).</b> Up to 4 walkers move on the 8x8 grid every tick. X = pitch (scale degree), Y = velocity (or a CC). Each walker has its own color.<br>
+    1. R3C9-R6C9 = select walker 1-4 (selected = white). The display shows its MIDI channel (GL = follows the board channel).<br>
+    2. R3C10-R6C10 = switch walker 1-4 on / off. Only walker 1 starts on.<br>
+    3. R7C9 / R7C10 = channel of the selected walker, down / up (GL, then 1-16).<br>
+    4. Tap a pad = put the selected walker there (and switch it on).<br>
+    5. Hold Controls Shift: columns 9-10 show the 8 shared settings (rate, step, pull, Y mode, CC, octave, gate, run).</p>
+
+    <p><b>Layer 4 page 2: Pond (wave sequencer).</b> The pad is a water surface. No Play key needed.<br>
+    1. Tap a pad = drop a pebble. It plays its note and ripples spread out (max 8 ripples).<br>
+    2. Where ripples overlap their heights add up. When the height at a cell passes the threshold, that cell plays its note.<br>
+    3. Notes follow the selected scale and root: +1 scale step per column, +3 per row. Wave height = velocity and the filter CC (74 by default): big waves loud and bright, fading ripples soft and muffled.<br>
+    4. Keys at the right: R3 ripple speed, R4 decay, R5 threshold (lower = more notes), R6 wavelength, R7C9 melodic / drum mode (drum mode: wave height picks the drum 36-43), R7C10 clear ripples, R8 octave, R9 filter CC number.</p>
+
+    <p><b>Layer 4 page 3: Constellation (spatial sequencer).</b> Needs Play.<br>
+    1. Tap pads to place anchors (max 20). Tap an anchor again to remove it. Anchors are bright, the path between them is dim.<br>
+    2. A nearest-neighbour path joins the anchors. A white playhead runs along it, one cell per 16th step.<br>
+    3. On an anchor it plays a sustained chord (held until the next anchor). On the cells in between it plays short notes, straight and diagonal.<br>
+    4. Arrows at the top right: up / down = BPM, left / right = maximum connection distance. Low values split the anchors into several small sequences that run at once.<br>
+    5. Shape sends CCs: area + perimeter = filter cutoff (CC 74), number of empty keys = reverb send (CC 91), number of anchors = maximum velocity.<br>
+    6. R10C10 = clear all anchors.</p>
+
+    <p><b>Layer 3 page 4: CC sequencer.</b> For synth and effect parameters (Volca, analog synths through MIDI-to-CV, Ableton MIDI map). It runs in the background, also on other pages.<br>
+    1. Top 4 rows of the pad = lanes 1-4, 8 steps each (16th notes). Tap a step = select it (blinks). Tap it again = on / off. Off steps send nothing. Brightness shows the value.<br>
+    2. Row 5: value of the selected step -8 / +8 / -1 / +1 (the CC is sent at once as a preview), tempo -5 / +5, lane length - / +.<br>
+    3. Row 6: lane CC number - / +, MIDI channel - / +, play / stop, reset, fill lane, clear lane.<br>
+    4. Row 7: test presets 1 (Volca Keys: CC 44, 52, 53, 46), 2 (Volca FM2: CC 93, 91, 46, 47), 3 (generic CC 20-23). Each loads CC numbers and a different value pattern per lane.<br>
+    5. Row 8: mute lane 1-4.</p>
+
+    <p><b>Layer 1 page 5: Harmony. Chord progression (chord keys only).</b><br>
+    1. R3C9-R6C9 = chord steps 1-4 (top to bottom). Empty = dark, filled = page color, playhead = white. Tap a step = select it (blinks). Delete + tap = clear it.<br>
+    2. Play runs the loop. Loop length follows the step recorder BARS setting: 1 bar = 4 steps per chord, 2 bars = 8.<br>
+    3. To set a chord: select a step, then press a chord key. Play off: set at once. Play + Record on: the chord waits (blinks in color 2) and goes in at the next loop. Play only: it just loops.</p>
+
+    <p><b>Arpeggiator patterns.</b> Hold the ARP key (R10C9): up / down = next / previous pattern (the 2-letter code shows on the grid), left / right = cadence stop length (1-8 bars). Double-tap ARP = arp on / off.<br>
+    UP DN UD DU RN AS CH = the old modes. <b>AL</b> Alberti (low, high, middle, high). <b>BA</b> Bach (low note, then a rising 3-note figure twice). <b>RO</b> Rolling (whole chord up and down over 2+ octaves). <b>BE</b> Bebop (chord tones on the beats, half-step approach on the offbeats). <b>US</b> Upper structure (3rd, 5th, 7th, 9th above the lowest note). <b>CS</b> Cadence stop (plays the last pattern, then one block chord after N bars). <b>IN</b> Intensity (the longer you hold the chord, the denser and louder: keys have no velocity).</p>
+
+    <p><b>Rolled chords.</b> Tap Controls Shift + ARP (R10C9) = on / off. Chord keys (Chords, Harmony, zone chords) then play their notes one after another. Hold Shift + ARP with the arrows: up / down = speed (slow harp to fast guitar), right = direction (up / down / alternate), left = velocity ramp (flat / rising / falling).</p>
+
+    <p><b>Shift display.</b> While Controls Shift is held, the control area turns orange and the 4 navigation keys a stronger orange. Column 9 (R3-R10) lights as many LEDs as the layer number (1-4), column 10 as many as the page number, filled from the bottom. Unused slots are dim dots. A "P#" label is drawn on the pads as a test. The indicator also flashes for 1 second after you change layer or page.</p>
+  </div>
+</details>

@@ -1,0 +1,392 @@
+/*@@BLOCK mac #40 (v12 lines 48-49)@@*/
+#define CLEAR_HOLD_MS   500     /* macro clear: hold this long */
+#define MACRO_MAX       192     /* events per macro slot */
+/*@@END@@*/
+/*@@BLOCK ec #39 (v12 lines 267-270)@@*/
+typedef struct { uint32_t at; uint8_t ch, n, v; bool on; } ecq_t;
+static ecq_t    ecq[48];
+static uint8_t  necq = 0;
+static struct { bool on; uint16_t time, len; uint8_t fb, rep; } ec = {true, 300, 100, 30, 3};
+/*@@END@@*/
+/*@@BLOCK mac #38 (v12 lines 365-373)@@*/
+typedef struct { uint16_t key; int16_t d; } qd_t;
+typedef struct {
+    mev_t ev[MACRO_MAX]; uint8_t n, idx, state, speed, non, nkeys, nqd;   /* state 0 empty, 1 recording, 2 playing, 3 stopped */
+    bool od, loop, quant, mute, clearing, ovf;
+    uint32_t len, t0, start, clear_at, flash_at;
+    uint8_t on_ch[32], on_n[32]; uint16_t keys[16]; qd_t qd[64]; uint8_t qd_next;
+} slot_t;
+static slot_t   mac[4];
+static bool     replaying = false;
+/*@@END@@*/
+/*@@BLOCK mac #37 (v12 lines 418-423)@@*/
+/* ---------------- Output (every message passes the macro recorder) ---------------- */
+static void macro_record(uint8_t k, uint8_t type, uint8_t ch, uint8_t a, uint8_t b);
+static void out_rec(uint8_t type, uint8_t ch, uint8_t a, uint8_t b) {
+    if (replaying) return;
+    for (uint8_t k = 0; k < 4; k++) if (mac[k].state == 1 || (mac[k].state == 2 && mac[k].od)) macro_record(k, type, ch, a, b);
+}
+/*@@END@@*/
+/*@@BLOCK lfo #36 (v12 lines 746-747)@@*/
+static const uint16_t lfo_rates[8] = {768, 384, 192, 96, 48, 24, 12, 6};
+static const char     lfo_shapes[6][3] = {"SI", "TR", "SU", "SD", "SQ", "RN"}, lfo_sets[8][3] = {"SH", "RT", "DP", "CT", "TG", "CH", "RN", "PH"};
+/*@@END@@*/
+/*@@BLOCK tm #35 (v12 lines 750-750)@@*/
+typedef struct { uint16_t reg; uint8_t len, lock, range; int8_t oct; uint8_t rest, gate, rate; bool run; uint8_t hist[8]; } turing_t;
+/*@@END@@*/
+/*@@BLOCK bb #34 (v12 lines 751-751)@@*/
+typedef struct { uint8_t h[8], ph[8], rate, decay, rain; int8_t oct; uint8_t span, gate; bool run; } balls_t;
+/*@@END@@*/
+/*@@BLOCK lfo #33 (v12 lines 752-752)@@*/
+typedef struct { uint8_t shape, rate, depth, center, target, ch; bool run; uint8_t phase, rv; int16_t last; } lfo_t;
+/*@@END@@*/
+/*@@BLOCK tm #32 (v12 lines 754-754)@@*/
+static turing_t tm = {.reg = 0xB5A3, .len = 16, .lock = 75, .range = 2, .gate = 1, .rate = 3, .run = true};
+/*@@END@@*/
+/*@@BLOCK bb #31 (v12 lines 755-755)@@*/
+static balls_t  bb = {.rate = 4, .span = 1, .gate = 1, .run = true};
+/*@@END@@*/
+/*@@BLOCK lfo #30 (v12 lines 756-758)@@*/
+static lfo_t    lfo[4] = {{.rate = 3, .depth = 63, .center = 64, .target = 1, .rv = 127, .last = -1}, {.rate = 3, .depth = 63, .center = 64, .target = 74, .rv = 127, .last = -1},
+                          {.rate = 3, .depth = 63, .center = 64, .target = 71, .rv = 127, .last = -1}, {.rate = 3, .depth = 63, .center = 64, .target = 11, .rv = 127, .last = -1}};
+static uint8_t  gen_sel = 0;
+/*@@END@@*/
+/*@@BLOCK tm #29 (v12 lines 786-796)@@*/
+static inline uint32_t tm_mask(void) { return (1UL << tm.len) - 1; }
+static void tm_tick(uint8_t ch) {                            /* Turing machine: the last bit comes round again, flipped by chance */
+    uint8_t nb = (tm.reg >> (tm.len - 1)) & 1;
+    if (rnd_int(200) < (uint32_t)(100 - tm.lock)) nb ^= 1;   /* lock 100% = never, 0% = half of the time (fully random) */
+    tm.reg = (uint16_t)((((uint32_t)tm.reg << 1) | nb) & tm_mask());
+    uint8_t v = (uint8_t)((((uint32_t)tm.reg << (16 - tm.len)) >> 8) & 255);
+    for (uint8_t j = 0; j < 7; j++) tm.hist[j] = tm.hist[j + 1];
+    tm.hist[7] = v;
+    if (tm.rest && rnd_int(100) < (uint32_t)tm.rest * 10) return;
+    fire(ch, degree_pitch((int16_t)((uint16_t)v * tm.range * scale_len[scale] / 256), gen_base(tm.oct)), gen_dur(tm.rate, tm.gate), 100);
+}
+/*@@END@@*/
+/*@@BLOCK bb #28 (v12 lines 797-805)@@*/
+static void bb_tick(uint8_t ch) {                            /* bouncing balls: a ball of height h hits the floor every 2h ticks */
+    for (uint8_t c = 0; c < 8; c++) {
+        uint8_t h = bb.h[c]; if (!h) continue;
+        bb.ph[c]++;
+        if (bb.ph[c] == h) { uint16_t v = 40 + 12 * h; fire(ch, degree_pitch(c * bb.span, gen_base(bb.oct)), gen_dur(bb.rate, bb.gate), (uint8_t)(v > 127 ? 127 : v)); }
+        else if (bb.ph[c] >= 2 * h) { bb.ph[c] = 0; if (bb.decay) bb.h[c] = h - 1; }
+    }
+    if (bb.rain && rnd_int(100) < (uint32_t)bb.rain * 3) { uint8_t c = (uint8_t)rnd_int(8); uint8_t h = 1 + (uint8_t)rnd_int(7); if (!bb.h[c]) { bb.h[c] = h; bb.ph[c] = 0; } }
+}
+/*@@END@@*/
+/*@@BLOCK tm #27 (v12 lines 809-809)@@*/
+    else if (p == tm_page) { if (tm.run && k % gen_rates[tm.rate] == 0) tm_tick(ch_of(p)); }
+/*@@END@@*/
+/*@@BLOCK bb #26 (v12 lines 810-810)@@*/
+    else if (p == bb_page) { if (bb.run && k % gen_rates[bb.rate] == 0) bb_tick(ch_of(p)); }
+/*@@END@@*/
+/*@@BLOCK lfo #25 (v12 lines 812-837)@@*/
+static int16_t lfo_value(const lfo_t *L, uint16_t pos, uint16_t P) {   /* 0-127 from the cycle position (integer maths) */
+    uint16_t q = (uint16_t)(((uint32_t)pos * 256 / P + L->phase * 32) & 255); int16_t u;
+    switch (L->shape) {
+        case 0: { int16_t h = q & 127, s = (int16_t)(h * (128 - h) * 127L / 4096); u = q < 128 ? 127 + s : 127 - s; break; }
+        case 1: u = q < 128 ? q * 2 : (255 - q) * 2; break;
+        case 2: u = (int16_t)(q * 254 / 255); break;
+        case 3: u = 254 - (int16_t)(q * 254 / 255); break;
+        case 4: u = q < 128 ? 254 : 0; break;
+        default: u = L->rv;
+    }
+    return clampi((int16_t)(L->center - L->depth + (int32_t)u * L->depth / 127), 0, 127);
+}
+static void lfo_pulse(void) {                                /* one clock pulse (24 per beat); LFOs run while playing and on their page */
+    uint32_t lp = lfo_lp++;
+    if ((int8_t)cur_page != lfo_page) return;
+    for (uint8_t k = 0; k < 4; k++) {
+        lfo_t *L = &lfo[k]; if (!L->run) continue;
+        uint16_t P = lfo_rates[L->rate], pos = (uint16_t)(lp % P);
+        if (L->shape == 5 && pos == 0) L->rv = (uint8_t)rnd_int(255);
+        int16_t v = lfo_value(L, pos, P);
+        if (v == L->last) continue;
+        L->last = v;
+        uint8_t ch = L->ch ? L->ch - 1 : ch_of(lfo_page);
+        if (L->target) cc(ch, L->target, (uint8_t)v); else bend(ch, (int16_t)((v - 64) * 128));
+    }
+}
+/*@@END@@*/
+/*@@BLOCK tm #24 (v12 lines 851-861)@@*/
+    } else if (p == tm_page) {
+        switch (r) {
+            case 0: tm.rate = (uint8_t)clampi(tm.rate + d, 0, 4); SNUM(gen_rates[tm.rate]); break;
+            case 1: tm.len = (uint8_t)clampi(tm.len + d, 2, 16); tm.reg &= (uint16_t)tm_mask(); SNUM(tm.len); break;
+            case 2: tm.range = (uint8_t)clampi(tm.range + d, 1, 3); SNUM(tm.range); break;
+            case 3: tm.oct = (int8_t)clampi(tm.oct + d, -2, 2); SNUMS(tm.oct); break;
+            case 4: tm.rest = (uint8_t)clampi(tm.rest + d, 0, 10); SNUM(tm.rest * 10); break;
+            case 5: tm.gate = (uint8_t)clampi(tm.gate + d, 0, 3); SNUM(gen_gate[tm.gate]); break;
+            case 6: tm.reg = (uint16_t)(rnd_int(65536) & tm_mask()); STXT("RN"); break;
+            case 7: tm.run = d > 0; STXT(tm.run ? "ON" : "OF"); break;
+        }
+/*@@END@@*/
+/*@@BLOCK bb #23 (v12 lines 862-872)@@*/
+    } else if (p == bb_page) {
+        switch (r) {
+            case 0: bb.rate = (uint8_t)clampi(bb.rate + d, 0, 4); SNUM(gen_rates[bb.rate]); break;
+            case 1: bb.decay = d > 0; STXT(bb.decay ? "ON" : "OF"); break;
+            case 2: bb.rain = (uint8_t)clampi(bb.rain + d, 0, 10); SNUM(bb.rain); break;
+            case 3: bb.oct = (int8_t)clampi(bb.oct + d, -2, 2); SNUMS(bb.oct); break;
+            case 4: bb.span = (uint8_t)clampi(bb.span + d, 1, 3); SNUM(bb.span); break;
+            case 5: bb.gate = (uint8_t)clampi(bb.gate + d, 0, 3); SNUM(gen_gate[bb.gate]); break;
+            case 6: memset(bb.h, 0, 8); memset(bb.ph, 0, 8); STXT("CL"); break;
+            case 7: bb.run = d > 0; STXT(bb.run ? "ON" : "OF"); break;
+        }
+/*@@END@@*/
+/*@@BLOCK lfo #22 (v12 lines 873-884)@@*/
+    } else if (p == lfo_page) {
+        lfo_t *L = &lfo[r >> 1]; int8_t st = (r & 1) ? d : d * 8;   /* upper key of an LFO = coarse (8), lower = fine (1) */
+        switch (gen_sel) {
+            case 0: L->shape = (uint8_t)clampi(L->shape + d, 0, 5); STXT(lfo_shapes[L->shape]); break;
+            case 1: L->rate = (uint8_t)clampi(L->rate + d, 0, 7); SNUM(L->rate + 1); break;
+            case 2: L->depth = (uint8_t)clampi(L->depth + st, 0, 127); SNUM(L->depth); break;
+            case 3: L->center = (uint8_t)clampi(L->center + st, 0, 127); SNUM(L->center); break;
+            case 4: L->target = (uint8_t)clampi(L->target + st, 0, 127); L->last = -1; if (L->target) SNUM(L->target); else STXT("PB"); break;
+            case 5: L->ch = (uint8_t)clampi(L->ch + d, 0, 16); L->last = -1; if (L->ch) SNUM(L->ch); else STXT("GL"); break;
+            case 6: L->run = d > 0; L->last = -1; STXT(L->run ? "ON" : "OF"); break;
+            case 7: L->phase = (uint8_t)clampi(L->phase + d, 0, 7); SNUM(L->phase); break;
+        }
+/*@@END@@*/
+/*@@BLOCK lfo #21 (v12 lines 1044-1044)@@*/
+    lfo_pulse();
+/*@@END@@*/
+/*@@BLOCK mac #20 (v12 lines 1256-1346)@@*/
+/* ---------------- Dynamic macros (layer 4 page 4) ---------------- */
+static uint32_t mac_time(slot_t *S) { uint32_t e = now() - S->start; return S->speed == 0 ? e / 2 : S->speed == 1 ? e : e * 2; }
+static uint32_t mac_real(slot_t *S, uint32_t len) { return S->speed == 0 ? len * 2 : S->speed == 1 ? len : len / 2; }
+static void macro_record(uint8_t k, uint8_t type, uint8_t ch, uint8_t a, uint8_t b) {
+    slot_t *S = &mac[k];
+    if (S->n >= MACRO_MAX) return;
+    if (S->state == 1) { mev_t *e = &S->ev[S->n++]; e->t = now() - S->t0; e->type = type; e->ch = ch; e->a = a; e->b = b; return; }
+    uint32_t t = S->len ? mac_time(S) % S->len : 0;
+    uint8_t j = 0;
+    while (j < S->n && S->ev[j].t <= t) j++;
+    memmove(&S->ev[j + 1], &S->ev[j], (S->n - j) * sizeof(mev_t));
+    S->ev[j].t = t; S->ev[j].type = type; S->ev[j].ch = ch; S->ev[j].a = a; S->ev[j].b = b; S->n++;
+    if (j <= S->idx) S->idx++;
+}
+static void macro_send(slot_t *S, mev_t *e) {
+    if (e->type == EV_ON) { if (S->mute) return; if (S->non < 32) { S->on_ch[S->non] = e->ch; S->on_n[S->non] = e->a; S->non++; } else S->ovf = true; }
+    if (e->type == EV_OFF) for (int8_t j = S->non - 1; j >= 0; j--) if (S->on_ch[j] == e->ch && S->on_n[j] == e->a) { S->on_ch[j] = S->on_ch[--S->non]; S->on_n[j] = S->on_n[S->non]; }
+    if (e->type == EV_KEY) { if (S->mute) return; if (S->nkeys < 16) S->keys[S->nkeys++] = e->a | ((uint16_t)e->b << 8); else S->ovf = true; }
+    if (e->type == EV_KEYUP) { uint16_t kc = e->a | ((uint16_t)e->b << 8); for (int8_t j = S->nkeys - 1; j >= 0; j--) if (S->keys[j] == kc) S->keys[j] = S->keys[--S->nkeys]; }
+    if (S->mute && e->type != EV_OFF && e->type != EV_KEYUP) return;
+    replaying = true; raw_send(e->type, e->ch, e->a, e->b); replaying = false;
+}
+static void macro_silence(slot_t *S) {
+    for (uint8_t j = 0; j < S->non; j++) raw_send(EV_OFF, S->on_ch[j], S->on_n[j], 0);
+    for (uint8_t j = 0; j < S->nkeys; j++) unregister_code16(S->keys[j]);
+    if (S->ovf) { for (uint8_t c = 0; c < 16; c++) raw_send(EV_CC, c, 123, 0); S->ovf = false; }
+    S->non = 0; S->nkeys = 0;
+}
+static uint32_t macro_event_time(slot_t *S, mev_t *e) {
+    if (!S->quant) return e->t;
+    uint32_t p = per16();
+    uint16_t key = (e->type == EV_KEY || e->type == EV_KEYUP) ? (0x8000 | (e->a | ((uint16_t)e->b << 8))) : (uint16_t)(e->ch * 128 + e->a);
+    if (e->type == EV_ON || e->type == EV_KEY || e->type == EV_CC || e->type == EV_PB || e->type == EV_PC) {
+        uint32_t tq = (e->t + p / 2) / p * p;
+        if (e->type == EV_ON || e->type == EV_KEY) {
+            uint8_t j = 0; while (j < S->nqd && S->qd[j].key != key) j++;
+            if (j == S->nqd) { if (S->nqd < 64) S->nqd++; else { j = S->qd_next; S->qd_next = (S->qd_next + 1) % 64; } }
+            S->qd[j].key = key; S->qd[j].d = (int16_t)((int32_t)tq - (int32_t)e->t);
+        }
+        return tq;
+    }
+    for (uint8_t j = 0; j < S->nqd; j++) if (S->qd[j].key == key) { int32_t v = (int32_t)e->t + S->qd[j].d; return v < 0 ? 0 : v; }
+    return e->t;
+}
+static void macro_play(slot_t *S) { S->state = 2; S->start = now(); S->idx = 0; S->nqd = 0; S->flash_at = now(); }
+static void macro_stop(slot_t *S) { macro_silence(S); S->state = S->n ? 3 : 0; S->od = false; }
+static void macro_reset(slot_t *S) { bool loop = S->loop; macro_silence(S); memset(S, 0, sizeof(slot_t)); S->loop = loop; S->speed = 1; }
+static void macro_task(void) {
+    for (uint8_t k = 0; k < 4; k++) {
+        slot_t *S = &mac[k];
+        if (S->clearing && (int32_t)(now() - S->clear_at) >= 0) { macro_reset(S); show_text("CL", false, 0, false, false); }
+        if (S->state != 2 || !S->len) continue;
+        uint32_t t = mac_time(S), lim = t < S->len ? t : S->len;
+        while (S->idx < S->n && macro_event_time(S, &S->ev[S->idx]) <= lim) { macro_send(S, &S->ev[S->idx]); S->idx++; }
+        if (t >= S->len) {
+            macro_silence(S);
+            if (S->loop) { S->start += mac_real(S, S->len); S->idx = 0; S->nqd = 0; S->flash_at = now(); }
+            else { S->state = 3; S->od = false; }
+        }
+    }
+}
+static void macro_press(uint8_t k, uint8_t f) {
+    slot_t *S = &mac[k];
+    switch (f) {
+        case 0:
+            if (S->state == 1) {
+                uint32_t len = now() - S->t0; if (len < 50) len = 50;
+                if (S->quant) { uint32_t p = per16(); len = (len + p / 2) / p; if (!len) len = 1; len *= p; }
+                S->len = len;
+                if (S->n) macro_play(S); else S->state = 0;
+            } else { macro_silence(S); S->n = 0; S->len = 0; S->state = 1; S->t0 = now(); S->od = false; S->idx = 0; }
+            break;
+        case 1:
+            if (S->state == 2) macro_stop(S);
+            else if (S->state == 3) macro_play(S);
+            else if (S->state == 1) macro_press(k, 0);
+            break;
+        case 2: if (S->state >= 2) S->od = !S->od; break;
+        case 3: S->loop = !S->loop; break;
+        case 4: S->clearing = true; S->clear_at = now() + CLEAR_HOLD_MS; break;
+        case 5: S->quant = !S->quant; break;
+        case 6: {
+            uint32_t pos = S->state == 2 ? mac_time(S) : 0;
+            S->speed = (S->speed + 1) % 3;
+            if (S->state == 2) S->start = now() - mac_real(S, pos);
+            show_text(S->speed == 0 ? ".5" : S->speed == 1 ? "1 " : "2 ", false, 0, false, false);
+            break;
+        }
+        case 7: S->mute = !S->mute; if (S->mute) macro_silence(S); break;
+    }
+}
+/*@@END@@*/
+/*@@BLOCK ec #19 (v12 lines 1479-1514)@@*/
+/* ---- MIDI echo (layer 4): a pad press plays the note and queues repeats, each quieter. Echoes never create echoes ---- */
+static void ec_param(uint8_t n) {
+    int8_t d = (n & 1) ? 1 : -1;
+    switch (n >> 1) {
+        case 0: ec.time = (uint16_t)clampi(ec.time + d * 10, 50, 1000); SNUM(ec.time); break;
+        case 1: ec.fb = (uint8_t)clampi(ec.fb + d * 5, 0, 80); SNUM(ec.fb); break;
+        case 2: ec.rep = (uint8_t)clampi(ec.rep + d, 1, 8); SNUM(ec.rep); break;
+        case 3: ec.len = (uint16_t)clampi(ec.len + d * 10, 20, 300); SNUM(ec.len); break;
+    }
+}
+static void ec_schedule(int16_t *ns, uint8_t cnt, uint8_t ch) {
+    if (!ec.on) return;
+    for (uint8_t j = 0; j < cnt; j++) {
+        if (ns[j] < 0 || ns[j] > 127) continue;
+        for (uint8_t r = 1; r <= ec.rep; r++) {
+            int32_t v = (127L * (100 - (int32_t)ec.fb * r)) / 100; if (v < 1) break;
+            if (necq + 2 > 48) break;                         /* queue full: drop the new echoes */
+            uint32_t at = now() + (uint32_t)r * ec.time;
+            ecq[necq].at = at; ecq[necq].ch = ch; ecq[necq].n = (uint8_t)ns[j]; ecq[necq].v = (uint8_t)v; ecq[necq].on = true; necq++;
+            ecq[necq].at = at + ec.len; ecq[necq].ch = ch; ecq[necq].n = (uint8_t)ns[j]; ecq[necq].v = 0; ecq[necq].on = false; necq++;
+        }
+    }
+}
+static void ec_task(void) {
+    if (!necq) return;
+    uint32_t t = now(); uint8_t w = 0;
+    for (uint8_t k = 0; k < necq; k++) {
+        if ((int32_t)(t - ecq[k].at) >= 0) { if (ecq[k].on) note_on(ecq[k].ch, ecq[k].n, ecq[k].v); else note_off(ecq[k].ch, ecq[k].n); }
+        else ecq[w++] = ecq[k];
+    }
+    necq = w;
+}
+static void ec_key(uint8_t n, uint8_t p) {
+    if (n == 8) { ec.on = !ec.on; STXT(ec.on ? "ON" : "OF"); return; }
+    rep_key = p; rep_kind = 7; rep_on = false; rep_t = now(); ec_param(n);
+}
+/*@@END@@*/
+/*@@BLOCK ec #18 (v12 lines 1729-1729)@@*/
+    else if (rep_kind == 7) ec_param(KNUM(k));
+/*@@END@@*/
+/*@@BLOCK mac #17 (v12 lines 1750-1750)@@*/
+    for (uint8_t k = 0; k < 4; k++) if (mac[k].state == 1 || mac[k].state == 2) { macro_silence(&mac[k]); mac[k].state = mac[k].n && mac[k].len ? 3 : 0; mac[k].od = false; }
+/*@@END@@*/
+/*@@BLOCK ec #16 (v12 lines 1792-1792)@@*/
+            if (t == T_T && (int8_t)cur_page == ec_page) ec_schedule(ns, cnt, ch);     /* only real pad presses create echoes */
+/*@@END@@*/
+/*@@BLOCK ec #15 (v12 lines 1911-1911)@@*/
+        case T_EC: ec_key(n, p); break;
+/*@@END@@*/
+/*@@BLOCK tm #14 (v12 lines 1979-1980)@@*/
+        case T_TB: if (n < tm.len) tm.reg ^= (uint16_t)(1u << n); break;
+        case T_TL: tm.lock = tm_locks[n]; SNUM(tm.lock); break;
+/*@@END@@*/
+/*@@BLOCK bb #13 (v12 lines 1981-1981)@@*/
+        case T_BB: bb.h[n & 7] = n >> 3; bb.ph[n & 7] = 0; break;
+/*@@END@@*/
+/*@@BLOCK lfo #12 (v12 lines 1982-1982)@@*/
+        case T_GP: gen_sel = n; show_text(lfo_sets[n], false, 0, false, false); break;
+/*@@END@@*/
+/*@@BLOCK mac #11 (v12 lines 2007-2007)@@*/
+        case T_MC: macro_press(n >> 3, n & 7); break;
+/*@@END@@*/
+/*@@BLOCK mac #10 (v12 lines 2068-2068)@@*/
+        case T_MC: if ((n & 7) == 4) mac[n >> 3].clearing = false; break;
+/*@@END@@*/
+/*@@BLOCK mac #9 (v12 lines 2103-2103)@@*/
+    for (uint8_t k = 0; k < 4; k++) { mac[k].loop = true; mac[k].speed = 1; }
+/*@@END@@*/
+/*@@BLOCK mac #8 (v12 lines 2117-2117)@@*/
+    macro_task();
+/*@@END@@*/
+/*@@BLOCK ec #7 (v12 lines 2118-2118)@@*/
+    ec_task();
+/*@@END@@*/
+/*@@BLOCK ec #6 (v12 lines 2147-2147)@@*/
+        case T_EC: return n == 8 && ec.on;
+/*@@END@@*/
+/*@@BLOCK lfo #5 (v12 lines 2156-2156)@@*/
+        case T_GP: return gen_sel == n;
+/*@@END@@*/
+/*@@BLOCK tm #4 (v12 lines 2386-2398)@@*/
+        case T_TB: {
+            if (n >= tm.len) SETOFF();
+            bool on = (tm.reg >> n) & 1;
+            if (n == tm.len - 1) { if (on) SETW(); SETDW(); }
+            if (on) SETC();
+            SETD(col, 10);
+        }
+        case T_TL: { pal(1, c2); if (tm_locks[n] <= tm.lock) SETV(c2); SETD(c2, 8); }
+        case T_TH: {
+            uint8_t k = n & 7, lvl = (uint8_t)(((uint16_t)tm.hist[k] * 5) >> 8);
+            if (lvl >= (n >> 3)) SETPAL(k == 7 ? 2 : 3);
+            SETOFF();
+        }
+/*@@END@@*/
+/*@@BLOCK bb #3 (v12 lines 2399-2408)@@*/
+        case T_BB: {
+            uint8_t k = n & 7, r = n >> 3, h = bb.h[k], lc[3]; pal(k % 2 ? 1 : 0, lc);
+            if (h) {
+                uint8_t y = bb.ph[k] <= h ? h - bb.ph[k] : bb.ph[k] - h;
+                if (y == r) SETW();
+                if (r == h) SETD(lc, 4);
+            }
+            if (r == 0) SETD(lc, 6);
+            SETD(lc, 14);
+        }
+/*@@END@@*/
+/*@@BLOCK lfo #2 (v12 lines 2409-2425)@@*/
+        case T_LV: {
+            uint8_t r = n >> 3, k = r >> 1, cl = n & 7, lc[3]; lfo_t *L = &lfo[k]; pal(k, lc);
+            int16_t v;
+            if (!(r & 1)) { v = L->last < 0 ? 0 : L->last; if (cl < ((v * 8 + 64) >> 7)) { if (L->run) SETV(lc); SETD(lc, 3); } SETD(lc, 12); }
+            switch (gen_sel) {
+                case 0: v = L->shape + 1; break;
+                case 1: v = L->rate + 1; break;
+                case 2: v = (L->depth * 8 + 64) >> 7; break;
+                case 3: v = (L->center * 8 + 64) >> 7; break;
+                case 4: v = (L->target * 8 + 64) >> 7; break;
+                case 5: v = (L->ch * 8 + 8) >> 4; break;
+                case 6: v = L->run ? 8 : 0; break;
+                default: v = L->phase + 1;
+            }
+            if (cl < v) SETD(lc, 3);
+            SETOFF();
+        }
+/*@@END@@*/
+/*@@BLOCK mac #1 (v12 lines 2458-2473)@@*/
+        case T_MC: {
+            slot_t *S = &mac[n >> 3];
+            uint8_t f = n & 7;
+            bool has = S->n > 0 && S->state != 1;
+            switch (f) {
+                case 0: if (S->state == 1) { if (blink(BLINK_MS)) SET(255, 0, 0); SET(85, 0, 0); } if (has) SET(85, 0, 0); SET(43, 0, 0);
+                case 1: if (S->state == 2) { if (now() - S->flash_at < 120) SETW(); SET(0, 255, 40); } if (has) SET(0, 51, 8); SETOFF();
+                case 2: if (!has) SETOFF(); if (S->od) SETOR(); SET(51, 18, 0);
+                case 3: if (!has) SETOFF(); if (S->loop) SETC(); SETD(col, 5);
+                case 4: if (!has) SETOFF(); if (S->clearing) SETW(); SETDW();
+                case 5: if (!has) SETOFF(); if (S->quant) SETPAL(2); SETPALD(2, 5);
+                case 6: if (!has) SETOFF(); if (S->speed == 2) SETW(); if (S->speed == 1) SETPAL(3); SETPALD(3, 4);
+                case 7: if (!has) SETOFF(); if (S->mute) SET(255, 0, 0); SETPALD(1, 5);
+            }
+            SETOFF();
+        }
+/*@@END@@*/

@@ -1,0 +1,328 @@
+/*@@BLOCK tm #73 (v12 lines 38-38)@@*/
+const TM_LOCKS = [0, 15, 30, 45, 60, 75, 90, 100];        // lock fader: 8 levels (percent)
+/*@@END@@*/
+/*@@BLOCK lfo #72 (v12 lines 39-41)@@*/
+const LFO_RATES = [768, 384, 192, 96, 48, 24, 12, 6];     // clock pulses per cycle (24 per beat): 8 bars ... 1/16
+const LFO_SHAPES = ['SI', 'TR', 'SU', 'SD', 'SQ', 'RN'];  // sine, triangle, saw up, saw down, square, random (sample and hold)
+const LFO_SETS = ['SH', 'RT', 'DP', 'CT', 'TG', 'CH', 'RN', 'PH'];
+/*@@END@@*/
+/*@@BLOCK tm #71 (v12 lines 52-52)@@*/
+    tm: {reg: 0xB5A3, len: 16, lock: 75, range: 2, oct: 0, rest: 0, gate: 1, rate: 3, run: true, hist: new Array(8).fill(0)},
+/*@@END@@*/
+/*@@BLOCK bb #70 (v12 lines 53-53)@@*/
+    bb: {h: new Array(8).fill(0), ph: new Array(8).fill(0), rate: 4, decay: 0, rain: 0, oct: 0, span: 1, gate: 1, run: true},
+/*@@END@@*/
+/*@@BLOCK lfo #69 (v12 lines 54-54)@@*/
+    lfo: [1, 74, 71, 11].map(tg => ({shape: 0, rate: 3, depth: 63, center: 64, target: tg, ch: 0, run: false, phase: 0, rv: 127, last: -1})),
+/*@@END@@*/
+/*@@BLOCK mac #68 (v12 lines 56-56)@@*/
+  const newSlot = () => ({ev: [], len: 0, state: 0, od: false, loop: true, quant: false, speed: 1, mute: false, t0: 0, start: 0, idx: 0, on: [], keys: [], qd: {}, clearAt: -1, flashAt: -1});
+/*@@END@@*/
+/*@@BLOCK ec #67 (v12 lines 72-72)@@*/
+      ec: {on: true, time: 300, fb: 30, rep: 3, len: 100, q: []},
+/*@@END@@*/
+/*@@BLOCK mac #66 (v12 lines 135-135)@@*/
+    if (!E.replaying) E.mac.forEach((S, k) => { if (S.state === 1 || (S.state === 2 && S.od)) macroRecord(k, m); });
+/*@@END@@*/
+/*@@BLOCK ec #65 (v12 lines 380-410)@@*/
+  // ---- MIDI echo (layer 4): a pad press plays the note and queues repeats, each quieter. Echoes never create echoes (only pad presses call ecSchedule) ----
+  function ecParam(n) {
+    const e = E.ec, d = n & 1 ? 1 : -1;
+    switch (n >> 1) {
+      case 0: e.time = clamp(e.time + d * 10, 50, 1000); showNum(e.time, false, false, false); break;
+      case 1: e.fb = clamp(e.fb + d * 5, 0, 80); showNum(e.fb, false, false, false); break;
+      case 2: e.rep = clamp(e.rep + d, 1, 8); showNum(e.rep, false, false, false); break;
+      case 3: e.len = clamp(e.len + d * 10, 20, 300); showNum(e.len, false, false, false); break;
+    }
+  }
+  function ecKey(n, i) {
+    if (n === 8) { E.ec.on = !E.ec.on; showText(E.ec.on ? 'ON' : 'OF', false); return; }
+    E.repeat = {key: i, t: now(), rep: false, slow: true, fn: () => ecParam(n)}; ecParam(n);
+  }
+  function ecSchedule(ns, ch, vel = 127) {
+    const e = E.ec; if (!e.on) return;
+    ns.forEach(n => {
+      for (let r = 1; r <= e.rep; r++) {
+        const v = Math.floor(vel * (100 - e.fb * r) / 100); if (v < 1) break;
+        if (e.q.length + 2 > 48) return;                      // queue full: drop the new echoes
+        const at = now() + r * e.time;
+        e.q.push({at, ch, n, v, on: true}); e.q.push({at: at + e.len, ch, n, v: 0, on: false});
+      }
+    });
+  }
+  function ecTick() {
+    const e = E.ec; if (!e.q.length) return false;
+    const t = now(); let did = false;
+    e.q = e.q.filter(x => { if (t < x.at) return true; if (x.on) nOn(x.ch, x.n, x.v); else nOff(x.ch, x.n); did = true; return false; });
+    return did;
+  }
+/*@@END@@*/
+/*@@BLOCK tm #64 (v12 lines 611-621)@@*/
+  const tmMask = T => (1 << T.len) - 1;
+  function tmTick(T, ch) {                                    // Turing machine: the last bit comes round again, flipped by chance
+    let nb = (T.reg >> (T.len - 1)) & 1;
+    if (rndInt(200) < 100 - T.lock) nb ^= 1;                  // lock 100% = never, 0% = half of the time (fully random)
+    T.reg = ((T.reg << 1) | nb) & tmMask(T);
+    const v = ((T.reg << (16 - T.len)) >> 8) & 255;
+    T.hist = T.hist.slice(1).concat([v]);
+    if (T.rest && rndInt(100) < T.rest * 10) return;
+    const iv = scaleIv();
+    fire(ch, degreePitch(Math.floor(v * T.range * iv.length / 256), genBase(T.oct), iv), genDur(T.rate, T.gate), 100);
+  }
+/*@@END@@*/
+/*@@BLOCK bb #63 (v12 lines 622-630)@@*/
+  function bbTick(B, ch) {                                    // bouncing balls: a ball of height h hits the floor every 2h ticks
+    for (let c = 0; c < 8; c++) {
+      const h = B.h[c]; if (!h) continue;
+      B.ph[c]++;
+      if (B.ph[c] === h) fire(ch, degreePitch(c * B.span, genBase(B.oct), scaleIv()), genDur(B.rate, B.gate), Math.min(127, 40 + 12 * h));
+      else if (B.ph[c] >= 2 * h) { B.ph[c] = 0; if (B.decay) B.h[c] = h - 1; }
+    }
+    if (B.rain && rndInt(100) < B.rain * 3) { const c = rndInt(8), h = 1 + rndInt(7); if (!B.h[c]) { B.h[c] = h; B.ph[c] = 0; } }
+  }
+/*@@END@@*/
+/*@@BLOCK tm #62 (v12 lines 634-634)@@*/
+    else if (p === E.tmPage) { if (G.tm.run && k % GEN_RATES[G.tm.rate] === 0) tmTick(G.tm, chOf(p)); }
+/*@@END@@*/
+/*@@BLOCK bb #61 (v12 lines 635-635)@@*/
+    else if (p === E.bbPage) { if (G.bb.run && k % GEN_RATES[G.bb.rate] === 0) bbTick(G.bb, chOf(p)); }
+/*@@END@@*/
+/*@@BLOCK lfo #60 (v12 lines 637-663)@@*/
+  function lfoValue(L, pos, P) {                              // 0-127 from the cycle position (integer maths, same in keymap.c)
+    const q = (Math.floor(pos * 256 / P) + L.phase * 32) & 255;
+    let u;
+    switch (L.shape) {
+      case 0: { const h = q & 127, s = Math.floor(h * (128 - h) * 127 / 4096); u = q < 128 ? 127 + s : 127 - s; break; }
+      case 1: u = q < 128 ? q * 2 : (255 - q) * 2; break;
+      case 2: u = Math.floor(q * 254 / 255); break;
+      case 3: u = 254 - Math.floor(q * 254 / 255); break;
+      case 4: u = q < 128 ? 254 : 0; break;
+      default: u = L.rv;
+    }
+    return clamp(L.center - L.depth + Math.floor(u * L.depth / 127), 0, 127);
+  }
+  function lfoPulse() {                                       // one clock pulse (24 per beat); LFOs run while playing and on their page
+    const G = E.gen, lp = G.lp++;
+    if (E.page !== E.lfoPage) return;
+    G.lfo.forEach(L => {
+      if (!L.run) return;
+      const P = LFO_RATES[L.rate], pos = lp % P;
+      if (L.shape === 5 && pos === 0) L.rv = rndInt(255);
+      const v = lfoValue(L, pos, P);
+      if (v === L.last) return;
+      L.last = v;
+      const ch = L.ch ? L.ch - 1 : chOf(E.lfoPage);
+      if (L.target) cc(ch, L.target, v); else bend(ch, (v - 64) * 128);
+    });
+  }
+/*@@END@@*/
+/*@@BLOCK tm #59 (v12 lines 679-690)@@*/
+    } else if (p === E.tmPage) {
+      const T = G.tm;
+      switch (r) {
+        case 0: T.rate = clamp(T.rate + d, 0, 4); showNum(GEN_RATES[T.rate], false, false, false); break;
+        case 1: T.len = clamp(T.len + d, 2, 16); T.reg &= tmMask(T); showNum(T.len, false, false, false); break;
+        case 2: T.range = clamp(T.range + d, 1, 3); showNum(T.range, false, false, false); break;
+        case 3: T.oct = clamp(T.oct + d, -2, 2); showNum(T.oct, false, true, false); break;
+        case 4: T.rest = clamp(T.rest + d, 0, 10); showNum(T.rest * 10, false, false, false); break;
+        case 5: T.gate = clamp(T.gate + d, 0, 3); showNum(GEN_GATE[T.gate], false, false, false); break;
+        case 6: T.reg = rndInt(65536) & tmMask(T); showText('RN', false); break;
+        case 7: run(T); break;
+      }
+/*@@END@@*/
+/*@@BLOCK bb #58 (v12 lines 691-702)@@*/
+    } else if (p === E.bbPage) {
+      const B = G.bb;
+      switch (r) {
+        case 0: B.rate = clamp(B.rate + d, 0, 4); showNum(GEN_RATES[B.rate], false, false, false); break;
+        case 1: B.decay = d > 0 ? 1 : 0; showText(B.decay ? 'ON' : 'OF', false); break;
+        case 2: B.rain = clamp(B.rain + d, 0, 10); showNum(B.rain, false, false, false); break;
+        case 3: B.oct = clamp(B.oct + d, -2, 2); showNum(B.oct, false, true, false); break;
+        case 4: B.span = clamp(B.span + d, 1, 3); showNum(B.span, false, false, false); break;
+        case 5: B.gate = clamp(B.gate + d, 0, 3); showNum(GEN_GATE[B.gate], false, false, false); break;
+        case 6: B.h.fill(0); B.ph.fill(0); showText('CL', false); break;
+        case 7: run(B); break;
+      }
+/*@@END@@*/
+/*@@BLOCK lfo #57 (v12 lines 703-714)@@*/
+    } else if (p === E.lfoPage) {
+      const L = G.lfo[r >> 1], st = r & 1 ? d : d * 8;       // upper key of an LFO = coarse (8), lower = fine (1)
+      switch (G.sel) {
+        case 0: L.shape = clamp(L.shape + d, 0, 5); showText(LFO_SHAPES[L.shape], false); break;
+        case 1: L.rate = clamp(L.rate + d, 0, 7); showNum(L.rate + 1, false, false, false); break;
+        case 2: L.depth = clamp(L.depth + st, 0, 127); showNum(L.depth, false, false, false); break;
+        case 3: L.center = clamp(L.center + st, 0, 127); showNum(L.center, false, false, false); break;
+        case 4: L.target = clamp(L.target + st, 0, 127); L.last = -1; if (L.target) showNum(L.target, false, false, false); else showText('PB', false); break;
+        case 5: L.ch = clamp(L.ch + d, 0, 16); L.last = -1; if (L.ch) showNum(L.ch, false, false, false); else showText('GL', false); break;
+        case 6: L.run = d > 0; L.last = -1; showText(L.run ? 'ON' : 'OF', false); break;
+        case 7: L.phase = clamp(L.phase + d, 0, 7); showNum(L.phase, false, false, false); break;
+      }
+/*@@END@@*/
+/*@@BLOCK lfo #56 (v12 lines 832-832)@@*/
+    lfoPulse();
+/*@@END@@*/
+/*@@BLOCK mac #55 (v12 lines 1020-1101)@@*/
+  // ---- dynamic macros (layer 4 page 4) ----
+  const macTime = S => (now() - S.start) * MACRO_SPEEDS[S.speed];
+  const evKey = m => (m.type === 'key' || m.type === 'keyup') ? 'k' + m.text : m.ch * 128 + m.a;
+  function macroRecord(k, m) {
+    const S = E.mac[k];
+    if (S.ev.length >= MACRO_MAX) return;
+    if (S.state === 1) { S.ev.push({t: now() - S.t0, m: Object.assign({}, m)}); return; }
+    const t = macTime(S) % (S.len || 1);
+    let j = S.ev.findIndex(e => e.t > t); if (j < 0) j = S.ev.length;
+    S.ev.splice(j, 0, {t, m: Object.assign({}, m)});
+    if (j < S.idx) S.idx++; else if (j === S.idx) S.idx++;
+  }
+  function macroSend(S, m) {
+    if (m.type === 'on') { if (S.mute) return; if (S.on.length < 32) S.on.push([m.ch, m.a]); else S.ovf = true; }
+    if (m.type === 'off') S.on = S.on.filter(([c, n]) => !(c === m.ch && n === m.a));
+    if (m.type === 'key') { if (S.mute) return; if (S.keys.length < 16) S.keys.push(m.text); else S.ovf = true; }
+    if (m.type === 'keyup') S.keys = S.keys.filter(x => x !== m.text);
+    if (S.mute && m.type !== 'off' && m.type !== 'keyup') return;
+    E.replaying = true; send(m); E.replaying = false;
+  }
+  function macroSilence(S) {
+    E.replaying = true;
+    S.on.forEach(([c, n]) => send({type: 'off', ch: c, a: n, b: 0})); S.on = [];
+    S.keys.forEach(x => send({type: 'keyup', text: x})); S.keys = [];
+    if (S.ovf) { for (let c = 0; c < 16; c++) send({type: 'cc', ch: c, a: 123, b: 0}); S.ovf = false; }
+    E.replaying = false;
+  }
+  function macroEventTime(S, e) {
+    if (!S.quant) return e.t;
+    const p = per16(), key = evKey(e.m);
+    if (e.m.type === 'on' || e.m.type === 'key' || e.m.type === 'cc' || e.m.type === 'pb' || e.m.type === 'pc') {
+      const tq = Math.round(e.t / p) * p; if (e.m.type === 'on' || e.m.type === 'key') S.qd[key] = tq - e.t; return tq;
+    }
+    return e.t + (S.qd[key] || 0);
+  }
+  function macroPlay(S) { S.state = 2; S.start = now(); S.idx = 0; S.qd = {}; S.flashAt = now(); }
+  function macroStop(S) { macroSilence(S); S.state = S.ev.length ? 3 : 0; S.od = false; }
+  function macroTick() {
+    let did = false;
+    E.mac.forEach(S => {
+      if (S.clearAt >= 0 && now() >= S.clearAt) { S.clearAt = -1; macroSilence(S); Object.assign(S, newSlot(), {loop: S.loop}); showText('CL', false); did = true; }
+      if (S.state !== 2 || !S.len) return;
+      let t = macTime(S);
+      while (S.idx < S.ev.length && macroEventTime(S, S.ev[S.idx]) <= Math.min(t, S.len)) { macroSend(S, S.ev[S.idx].m); S.idx++; did = true; }
+      if (t >= S.len) {
+        macroSilence(S);
+        if (S.loop) { S.start += S.len / MACRO_SPEEDS[S.speed]; S.idx = 0; S.qd = {}; S.flashAt = now(); }
+        else { S.state = 3; S.od = false; }
+        did = true;
+      }
+    });
+    return did;
+  }
+  function macroPress(k, f) {
+    const S = E.mac[k];
+    switch (f) {
+      case 0:   // rec
+        if (S.state === 1) {
+          let len = Math.max(50, now() - S.t0);
+          if (S.quant) len = Math.max(1, Math.round(len / per16())) * per16();
+          S.len = len;
+          if (S.ev.length) macroPlay(S); else S.state = 0;
+        } else { macroSilence(S); Object.assign(S, {ev: [], len: 0, state: 1, t0: now(), od: false, idx: 0}); }
+        break;
+      case 1:   // play / stop
+        if (S.state === 2) macroStop(S);
+        else if (S.state === 3) macroPlay(S);
+        else if (S.state === 1) macroPress(k, 0);
+        break;
+      case 2: if (S.state >= 2) S.od = !S.od; break;
+      case 3: S.loop = !S.loop; break;
+      case 4: S.clearAt = now() + CLEAR_HOLD_MS; break;
+      case 5: S.quant = !S.quant; break;
+      case 6: {
+        const pos = S.state === 2 ? macTime(S) : 0;
+        S.speed = (S.speed + 1) % 3;
+        if (S.state === 2) S.start = now() - pos / MACRO_SPEEDS[S.speed];
+        showText(['.5', '1 ', '2 '][S.speed], false);
+        break; }
+      case 7: S.mute = !S.mute; if (S.mute) macroSilence(S); break;
+    }
+  }
+/*@@END@@*/
+/*@@BLOCK mac #54 (v12 lines 1111-1111)@@*/
+    E.mac.forEach(S => { if (S.state === 2 || S.state === 1) { macroSilence(S); S.state = S.ev.length && S.len ? 3 : 0; S.od = false; } });
+/*@@END@@*/
+/*@@BLOCK ec #53 (v12 lines 1224-1224)@@*/
+        if (c.type === 'T' && E.page === E.ecPage) ecSchedule(notesFor(c), ch);     // only real pad presses create echoes
+/*@@END@@*/
+/*@@BLOCK ec #52 (v12 lines 1387-1387)@@*/
+      case 'EC': ecKey(c.n, i); break;
+/*@@END@@*/
+/*@@BLOCK tm #51 (v12 lines 1396-1397)@@*/
+      case 'TB': { const T = E.gen.tm; if (c.n < T.len) T.reg ^= 1 << c.n; break; }
+      case 'TL': E.gen.tm.lock = TM_LOCKS[c.n]; showNum(E.gen.tm.lock, false, false, false); break;
+/*@@END@@*/
+/*@@BLOCK bb #50 (v12 lines 1398-1398)@@*/
+      case 'BB': { const B = E.gen.bb, k = c.n & 7, r = c.n >> 3; B.h[k] = r; B.ph[k] = 0; break; }          // bottom row = no ball
+/*@@END@@*/
+/*@@BLOCK lfo #49 (v12 lines 1399-1399)@@*/
+      case 'GP': E.gen.sel = c.n; showText(LFO_SETS[c.n], false); break;
+/*@@END@@*/
+/*@@BLOCK mac #48 (v12 lines 1421-1421)@@*/
+      case 'MC': macroPress(c.n >> 3, c.n & 7); break;
+/*@@END@@*/
+/*@@BLOCK mac #47 (v12 lines 1484-1484)@@*/
+        case 'MC': if ((c.n & 7) === 4) E.mac[c.n >> 3].clearAt = -1; break;
+/*@@END@@*/
+/*@@BLOCK ec #46 (v12 lines 1531-1531)@@*/
+    if (ecTick()) did = true;
+/*@@END@@*/
+/*@@BLOCK mac #45 (v12 lines 1535-1535)@@*/
+    if (macroTick()) did = true;
+/*@@END@@*/
+/*@@BLOCK tm #44 (v12 lines 1707-1716)@@*/
+      case 'TB': {
+        const T = E.gen.tm;
+        if (c.n >= T.len) return OFF;
+        const on = !!((T.reg >> c.n) & 1);
+        if (c.n === T.len - 1) return on ? WHITE : DIMW;
+        return on ? col : dim(col, 10); }
+      case 'TL': return TM_LOCKS[c.n] <= E.gen.tm.lock ? pal[1] : dim(pal[1], 8);
+      case 'TH': {
+        const k = c.n & 7, lvl = (E.gen.tm.hist[k] * 5) >> 8;
+        return lvl >= (c.n >> 3) ? (k === 7 ? pal[2] : pal[3]) : OFF; }
+/*@@END@@*/
+/*@@BLOCK bb #43 (v12 lines 1717-1720)@@*/
+      case 'BB': {
+        const B = E.gen.bb, k = c.n & 7, r = c.n >> 3, lc = k % 2 ? pal[1] : col, h = B.h[k];
+        if (h) { const y = B.ph[k] <= h ? h - B.ph[k] : B.ph[k] - h; if (y === r) return WHITE; if (r === h) return dim(lc, 4); }
+        return r === 0 ? dim(lc, 6) : dim(lc, 14); }
+/*@@END@@*/
+/*@@BLOCK lfo #42 (v12 lines 1721-1735)@@*/
+      case 'LV': {
+        const r = c.n >> 3, k = r >> 1, cl = c.n & 7, L = E.gen.lfo[k], lc = pal[k];
+        let v;
+        if (!(r & 1)) { v = L.last < 0 ? 0 : L.last; return cl < ((v * 8 + 64) >> 7) ? (L.run ? lc : dim(lc, 3)) : dim(lc, 12); }
+        switch (E.gen.sel) {
+          case 0: v = L.shape + 1; break;
+          case 1: v = L.rate + 1; break;
+          case 2: v = (L.depth * 8 + 64) >> 7; break;
+          case 3: v = (L.center * 8 + 64) >> 7; break;
+          case 4: v = (L.target * 8 + 64) >> 7; break;
+          case 5: v = (L.ch * 8 + 8) >> 4; break;
+          case 6: v = L.run ? 8 : 0; break;
+          default: v = L.phase + 1;
+        }
+        return cl < v ? dim(lc, 3) : OFF; }
+/*@@END@@*/
+/*@@BLOCK mac #41 (v12 lines 1758-1770)@@*/
+      case 'MC': {
+        const S = E.mac[c.n >> 3], f = c.n & 7, has = S.ev.length > 0 && S.state !== 1;
+        switch (f) {
+          case 0: return S.state === 1 ? (blink() ? RED : dim(RED, 3)) : dim(RED, has ? 3 : 6);
+          case 1: return S.state === 2 ? (now() - S.flashAt < 120 ? WHITE : GREEN) : has ? dim(GREEN, 5) : OFF;
+          case 2: return !has ? OFF : S.od ? ORANGE : dim(ORANGE, 5);
+          case 3: return !has ? OFF : S.loop ? col : dim(col, 5);
+          case 4: return has ? (S.clearAt >= 0 ? WHITE : DIMW) : OFF;
+          case 5: return !has ? OFF : S.quant ? pal[2] : dim(pal[2], 5);
+          case 6: return !has ? OFF : S.speed === 2 ? WHITE : S.speed === 1 ? pal[3] : dim(pal[3], 4);
+          case 7: return !has ? OFF : S.mute ? RED : dim(pal[1], 5);
+        }
+        return OFF; }
+/*@@END@@*/

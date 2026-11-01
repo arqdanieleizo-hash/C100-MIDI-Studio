@@ -1,0 +1,684 @@
+=== C100 8K KEYMAP (planner v6) ===
+Board: Keychron C100 8K, 10 rows x 10 columns. R1 is the top row, C1 the left column.
+The 8x8 pad area is R3 to R10 by C1 to C8 (bottom-left). Control keys: rows R1-R2 and columns C9-C10. R1C1 is also the flash-mode key.
+4 main layers: 1 keyboards (7 pages), 2 Ableton control (5), 3 sequencers (4), 4 generative pages (3). Navigation = the 4 top-right keys (R1C9, R1C10, R2C9, R2C10): arrows by default; with Controls Shift held: PG+, L+, PG-, L-. Shift has no other job. Control keys come from the CONTROLS tables unless a page changes them: >C on a page = use the CONTROLS tables, >L = use page 1 of the layer.
+Date: 2026-11-01
+
+SETTINGS
+knob_step: 4
+knob_mode: absolute
+transpose_step: 12
+transpose_limit: 24
+bpm: 120
+seq_note: 36
+bend_range: 48
+
+KEY CODES
+  -  no function   ~  inherit (page 1 of the layer, then the CONTROLS table)   >C use the CONTROLS tables   >L use page 1 of the layer   .  pad area (not used in CONTROLS tables)   *  custom, see KEYNOTE
+  N36 fixed note   T36 note that follows the octave keys   S5 in-key note   CH12 chord pad   Z19N36 zone note   ZC ZO ZV ZK ZT zone keys
+  PB+ PB- pitch bend   SUS sustain + latch   SCALE ROOT OCT TEMPO CHAN VOL hold + arrows   QZ scale quantize   ARP arpeggiator
+  CC20 CC button   CT20 CC toggle   K20+ K20- knob   FD102 fader pad   PC5 program change   KB:CTRL+U computer key
+  PS play/stop   BREC board record   REC Ableton record   TAP tempo   PG+ PG- page   L+ L- layer   CS Controls Shift
+  CL clip   TR track   TM track mode   XY XH XF XY pad   MS mini step   ST sequence target   DEL CPY delete / copy
+  SQ SP step sequencer   EU euclidean   FX FP MIDI effects   KILL   CK MK harmony keys   MT TU+ TU- microtonal
+  EP EK euclidean settings   FXK FXO effects key / effects off   MC macros   KP+ KP- keyboard bank
+  RW random walk cell   CP chord progression step   CQ CR CC sequencer   PD PN pond   CN CX constellation   RL rolled chords   WK walker select / on-off / channel   GS generative settings
+  SS DS SM SR TI SV SG BARS SK LN MET SRT SSW SDR step recorder + drum steps (layer 3 page 1)
+
+CONTROLS DEFAULT
+     C1        C2        C3        C4        C5        C6        C7        C8        C9        C10
+R1   PB+       DEL       CS        PS        BREC      CHAN      SCALE     OCT       KB:RIGHT  KB:UP
+R2   PB-       CPY       KB:CTRL+Z QZ        TAP       VOL       TEMPO     ROOT      KB:LEFT   KB:DOWN
+R3   .         .         .         .         .         .         .         .         -         -
+R4   .         .         .         .         .         .         .         .         REC       KB:CTRL+Y
+R5   .         .         .         .         .         .         .         .         -         -
+R6   .         .         .         .         .         .         .         .         KB:CTRL+U CLK
+R7   .         .         .         .         .         .         .         .         -         -
+R8   .         .         .         .         .         .         .         .         RL        -
+R9   .         .         .         .         .         .         .         .         FXK       FXO
+R10  .         .         .         .         .         .         .         .         ARP       SUS
+KEYNOTE R1C1: Pitch bend up while held, glides back on release
+KEYNOTE R1C2: Delete: hold it and tap a mini-sequencer step to clear that step. Double-tap = clear the whole selected sequence (on the step recorder: the whole track)
+KEYNOTE R1C3: Shift: hold it and use the four arrow keys (top right) to change layer and page. This is the only job of Shift
+KEYNOTE R1C4: Play / stop (CC 85 play, CC 86 stop) and the internal clock. On layer 1 page 1 it also restarts the mini sequencer
+KEYNOTE R1C5: Board record: the mini sequencer records the drums and pianos you play while it runs. Flashes red while on. Ableton record is R4C9
+KEYNOTE R1C6: MIDI channel for the whole board. Hold it and use the arrows: up / down = small step, right / left = big step. Pages and keyboards with their own channel keep it
+KEYNOTE R1C7: Scale. Hold it: up / down = next / previous scale, right / left = Western / Non-Western bank. Shows the 2-letter scale name
+KEYNOTE R1C8: Octave / transpose for everything. Hold it and use the arrows: up / down = small step, right / left = big step. (up/down 1 semitone, right/left 1 octave)
+KEYNOTE R1C9: Arrow right (big step). With Controls Shift: page up (layer 1 has 7 pages, layer 2 has 5, layer 3 has 4, layer 4 has 3). Always an arrow, never replaced by a page
+KEYNOTE R1C10: Arrow up (small step). With Controls Shift: next main layer
+KEYNOTE R2C1: Pitch bend down
+KEYNOTE R2C2: Copy the selected mini sequence. Double-tap = paste, then tap the first step
+KEYNOTE R2C3: Undo (Ctrl+Z). Redo is R4C10
+KEYNOTE R2C4: Scale quantize on / off: out-of-scale notes snap into the scale. Ableton Quantize (Ctrl+U) is R6C9
+KEYNOTE R2C5: Tap tempo (CC 88) + internal tempo
+KEYNOTE R2C6: Volume (CC 7) of the board channel. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R2C7: Tempo. Hold it and use the arrows: up / down = small step, right / left = big step. (up/down 1 BPM, right/left 10 BPM). Sends CC 89 relative to Ableton
+KEYNOTE R2C8: Root note. Hold it and use the arrows: up / down = small step, right / left = big step. (up/down 1 semitone, right/left a fifth)
+KEYNOTE R2C9: Arrow left (big step). With Controls Shift: page down
+KEYNOTE R2C10: Arrow down (small step). With Controls Shift: previous main layer
+KEYNOTE R4C9: Ableton record (CC 87). Board record is R1C5
+KEYNOTE R4C10: Redo (Ctrl+Y). Undo is R2C3
+KEYNOTE R6C9: Ableton Quantize (Ctrl+U). Scale quantize is R2C4
+KEYNOTE R6C10: Clock source: tap = Auto (follows a MIDI clock from Ableton or another device when one arrives) / Internal only (ignores outside clock, start and stop). Orange while an outside clock is running. The pads show AU or IN
+KEYNOTE R8C9: Rolled chords: tap = on / off (chord keys play their notes one after another). Hold it + arrows: up / down = speed (slow harp ... fast guitar), right = direction (up / down / alternate), left = velocity ramp (flat / rising / falling)
+KEYNOTE R9C9: Effects key. Tap = effects on / off for everything you play. Hold a note (or a step recorder track step) and tap = only that keyboard or track. Hold = rows 3-8 show the effects: columns 1-2 = 12 effects (tap = edit its faders, double-tap = on / off), columns 3-8 = its faders. Lit while the keyboard or track you played last has effects on
+KEYNOTE R9C10: Effects off on every keyboard and track. Effects key + this key = MIDI kill switch (all notes off, stops everything)
+KEYNOTE R10C9: Arpeggiator: double-tap = on / off for everything you play. Hold = the top 4 grid rows show the arp settings. Hold + up / down = pattern, left / right = cadence stop bars. Rolled chords are R8C9
+KEYNOTE R10C10: Hold = sustain (CC 64). Double-tap = latch on / off (notes keep playing after you let go; press one again to stop it)
+
+CONTROLS SHIFT
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     PG+   L+
+R2   ~     ~     ~     ~     ~     ~     ~     ~     PG-   L-
+R3   .     .     .     .     .     .     .     .     ~     ~
+R4   .     .     .     .     .     .     .     .     ~     ~
+R5   .     .     .     .     .     .     .     .     ~     ~
+R6   .     .     .     .     .     .     .     .     ~     ~
+R7   .     .     .     .     .     .     .     .     ~     ~
+R8   .     .     .     .     .     .     .     .     ~     ~
+R9   .     .     .     .     .     .     .     .     ~     ~
+R10  .     .     .     .     .     .     .     .     ~     ~
+KEYNOTE R1C9: Page up
+KEYNOTE R1C10: Next main layer
+KEYNOTE R2C9: Page down
+KEYNOTE R2C10: Previous main layer
+
+LAYER 1 PAGE 1 "Composer"
+colors: #ffb347 #ffd9a3 #fff047 #ff7647
+channel: global
+led: auto
+purpose: Composer: drums top-left, 16-step mini sequencer top-right (drums or either piano), upper piano and lower piano with their own controls
+led_note: Drums main color; the drum being sequenced color 4. Steps color 4 (or the piano color in piano mode), playhead white. Upper piano color 2, lower piano color 3 (black keys dimmer). Control keys inside the grid off until pressed or switched on (orange).
+     C1     C2     C3     C4     C5     C6     C7     C8     C9     C10
+R1   ~      ~      ~      ~      ~      ~      ~      ~      ~      ~
+R2   ~      ~      ~      ~      ~      ~      ~      ~      ~      ~
+R3   Z19N48 Z19N49 Z19N50 Z19N51 MS0    MS1    MS2    MS3    X-     X+
+R4   Z19N44 Z19N45 Z19N46 Z19N47 MS4    MS5    MS6    MS7    ~      ~
+R5   Z19N40 Z19N41 Z19N42 Z19N43 MS8    MS9    MS10   MS11   ~      ~
+R6   Z19N36 Z19N37 Z19N38 Z19N39 MS12   MS13   MS14   MS15   ~      ~
+R7   Z0N61  Z0N63  ZC0    Z0N66  Z0N68  Z0N70  -      ZO0    ZC19   ST
+R8   Z0N60  Z0N62  Z0N64  Z0N65  Z0N67  Z0N69  Z0N71  Z0N72  ~      ~
+R9   Z1N49  Z1N51  ZC1    Z1N54  Z1N56  Z1N58  ZK1    ZO1    ~      ~
+R10  Z1N48  Z1N50  Z1N52  Z1N53  Z1N55  Z1N57  Z1N59  Z1N60  ~      ~
+KEYNOTE R3C1: Drum pads (zone 19): their own channel (R7C9). Not moved by the octave keys
+KEYNOTE R3C9: Octave / transpose down (all keyboards of this layer; drums stay)
+KEYNOTE R3C10: Octave / transpose up
+KEYNOTE R6C5: Mini sequencer: 16 steps in reading order. Drums: steps of the drum pad you tapped last. Pianos: tap a step, then press notes; hold a step and use right / left to change its length. Stops when you leave this page
+KEYNOTE R7C3: Upper piano MIDI channel. Hold it and use the arrows: up / down = small step, right / left = big step. G = follows the board channel
+KEYNOTE R7C8: Upper piano octave. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R7C9: Drum channel. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R7C10: Sequence target: hold it and press a drum pad, an upper-piano key or a lower-piano key. The mini sequencer then edits that part
+KEYNOTE R9C3: Lower piano MIDI channel. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R9C7: Lower piano chords: tap = on / off; hold it and use the arrows to change the chord type
+KEYNOTE R9C8: Lower piano octave. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R10C1: GRID: drums + 16-step mini sequencer on top; two piano zones with their own channel, octave and chords below
+
+LAYER 1 PAGE 2 "Chromatic"
+colors: #ffb347 #ffd9a3 #fff047 #ff7647
+channel: global
+led: scale
+purpose: Isomorphic chromatic keyboard: +1 semitone per column, +8 per row
+led_note: Root notes in the main color, other notes of the scale in color 2, notes outside the scale off. Held pads white.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   T92   T93   T94   T95   T96   T97   T98   T99   ~     ~
+R4   T84   T85   T86   T87   T88   T89   T90   T91   ~     ~
+R5   T76   T77   T78   T79   T80   T81   T82   T83   ~     ~
+R6   T68   T69   T70   T71   T72   T73   T74   T75   ~     ~
+R7   T60   T61   T62   T63   T64   T65   T66   T67   ~     ~
+R8   T52   T53   T54   T55   T56   T57   T58   T59   ~     ~
+R9   T44   T45   T46   T47   T48   T49   T50   T51   ~     ~
+R10  T36   T37   T38   T39   T40   T41   T42   T43   ~     ~
+KEYNOTE R10C1: GRID: chromatic, lit by the selected scale and root
+
+LAYER 1 PAGE 3 "In key"
+colors: #ffb347 #ffd9a3 #fff047 #ff7647
+channel: global
+led: auto
+purpose: Single scale in sequence: every pad is in the selected scale and root; +1 scale step per column, +3 steps per row
+led_note: Root notes in the main color, all other pads color 2 (every pad is in the scale). Held pads white.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   S21   S22   S23   S24   S25   S26   S27   S28   ~     ~
+R4   S18   S19   S20   S21   S22   S23   S24   S25   ~     ~
+R5   S15   S16   S17   S18   S19   S20   S21   S22   ~     ~
+R6   S12   S13   S14   S15   S16   S17   S18   S19   ~     ~
+R7   S9    S10   S11   S12   S13   S14   S15   S16   ~     ~
+R8   S6    S7    S8    S9    S10   S11   S12   S13   ~     ~
+R9   S3    S4    S5    S6    S7    S8    S9    S10   ~     ~
+R10  S0    S1    S2    S3    S4    S5    S6    S7    ~     ~
+KEYNOTE R10C1: GRID: in-key layout, follows the scale and root keys
+
+LAYER 1 PAGE 4 "Chords"
+colors: #ffb347 #ffd9a3 #fff047 #ff7647
+channel: global
+led: auto
+purpose: Chord mode (Launchpad Pro style): columns = scale degrees I-VIII, rows from bottom = triad, 1st inv, 2nd inv, 7th, 9th, sus2, sus4, power
+led_note: Columns I and VIII in the main color, the other columns color 2. Held chords white.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   CH56  CH57  CH58  CH59  CH60  CH61  CH62  CH63  ~     ~
+R4   CH48  CH49  CH50  CH51  CH52  CH53  CH54  CH55  ~     ~
+R5   CH40  CH41  CH42  CH43  CH44  CH45  CH46  CH47  ~     ~
+R6   CH32  CH33  CH34  CH35  CH36  CH37  CH38  CH39  ~     ~
+R7   CH24  CH25  CH26  CH27  CH28  CH29  CH30  CH31  ~     ~
+R8   CH16  CH17  CH18  CH19  CH20  CH21  CH22  CH23  ~     ~
+R9   CH8   CH9   CH10  CH11  CH12  CH13  CH14  CH15  ~     ~
+R10  CH0   CH1   CH2   CH3   CH4   CH5   CH6   CH7   ~     ~
+KEYNOTE R10C1: GRID: one chord per pad, built from the selected scale and root
+
+LAYER 1 PAGE 5 "Harmony"
+colors: #ffb347 #ffd9a3 #fff047 #ff7647
+channel: global
+led: auto
+purpose: Experimental keyboard. Left half: chords of the key (rows I, II, III, IV, V, VI, VII, I from the bottom; columns triad, 7th, 9th, sus4). Right half: melody in the scale (+1 step per column, +4 per row) lit by the chord you hold. Chord progression: 4 slots on R3C9-R6C9 (start empty). Loop = the step recorder BARS setting (1 bar = 16 steps, 4 per chord). Play runs the loop. To edit: select a step, then press a chord key (stopped: set at once; Play + Record: set at the next loop; Play only: just loops)
+led_note: Chords: row I main color, other rows dim; held chord white; likely next chords blink in color 3. Melody: chord root main, other chord tones color 2, good tensions color 3, avoid notes color 4 (dim).
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   CK28  CK29  CK30  CK31  MK28  MK29  MK30  MK31  CP0   >C
+R4   CK24  CK25  CK26  CK27  MK24  MK25  MK26  MK27  CP1   >C
+R5   CK20  CK21  CK22  CK23  MK20  MK21  MK22  MK23  CP2   >C
+R6   CK16  CK17  CK18  CK19  MK16  MK17  MK18  MK19  CP3   >C
+R7   CK12  CK13  CK14  CK15  MK12  MK13  MK14  MK15  >C    >C
+R8   CK8   CK9   CK10  CK11  MK8   MK9   MK10  MK11  >C    >C
+R9   CK4   CK5   CK6   CK7   MK4   MK5   MK6   MK7   >C    >C
+R10  CK0   CK1   CK2   CK3   MK0   MK1   MK2   MK3   ~     ~
+KEYNOTE R3C9: Chord progression steps 1-4 (top to bottom). Tap = select a step (it blinks). Delete + tap = clear it. Empty = dark, filled = page color, playhead = white, a waiting chord blinks in color 2
+KEYNOTE R10C1: Chord keys: degree I (bottom row) to VII, then I an octave up. Columns: triad, 7th, 9th, sus4. Chord octave: hold any chord pad + OCT (R1C8) + arrows
+KEYNOTE R10C5: Melody keys: only scale notes. Right = next scale note, up = 4 scale notes higher. Melody octave: hold any melody pad + OCT (R1C8) + arrows
+
+LAYER 1 PAGE 6 "Multi channel"
+colors: #ffb347 #ffd9a3 #fff047 #ff7647
+channel: global
+led: auto
+purpose: 4 one-octave keyboards (2 rows each), each on its own channel with channel, octave and volume keys. KP- / KP+ pick 4 banks = 16 keyboards, starting on channels 1-16
+led_note: Keyboard 1-4 use the 4 palette colors (white keys bright, black keys dim). Zone keys off until held (orange).
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   Z4N61 Z4N63 ZC4   Z4N66 Z4N68 Z4N70 ZO4   ZV4   ~     ~
+R4   Z4N60 Z4N62 Z4N64 Z4N65 Z4N67 Z4N69 Z4N71 Z4N72 ~     ~
+R5   Z5N61 Z5N63 ZC5   Z5N66 Z5N68 Z5N70 ZO5   ZV5   KP-   KP+
+R6   Z5N60 Z5N62 Z5N64 Z5N65 Z5N67 Z5N69 Z5N71 Z5N72 ~     ~
+R7   Z6N61 Z6N63 ZC6   Z6N66 Z6N68 Z6N70 ZO6   ZV6   >C    >C
+R8   Z6N60 Z6N62 Z6N64 Z6N65 Z6N67 Z6N69 Z6N71 Z6N72 ~     ~
+R9   Z7N61 Z7N63 ZC7   Z7N66 Z7N68 Z7N70 ZO7   ZV7   ~     ~
+R10  Z7N60 Z7N62 Z7N64 Z7N65 Z7N67 Z7N69 Z7N71 Z7N72 ~     ~
+KEYNOTE R3C3: Keyboard 1 channel. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R3C7: Keyboard 1 octave. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R3C8: Keyboard 1 volume (CC 7 on its channel). Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R5C3: Keyboard 2 channel. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R5C7: Keyboard 2 octave. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R5C8: Keyboard 2 volume (CC 7 on its channel). Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R5C9: Previous keyboard bank (bank 1 = channels 1-4 ... bank 4 = channels 13-16)
+KEYNOTE R5C10: Next keyboard bank
+KEYNOTE R7C3: Keyboard 3 channel. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R7C7: Keyboard 3 octave. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R7C8: Keyboard 3 volume (CC 7 on its channel). Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R9C3: Keyboard 4 channel. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R9C7: Keyboard 4 octave. Hold it and use the arrows: up / down = small step, right / left = big step.
+KEYNOTE R9C8: Keyboard 4 volume (CC 7 on its channel). Hold it and use the arrows: up / down = small step, right / left = big step.
+
+LAYER 1 PAGE 7 "Microtonal"
+colors: #ffb347 #ffd9a3 #fff047 #ff7647
+channel: global
+led: auto
+purpose: Isomorphic microtonal keyboard with 6 tunings: 24-EDO, 19-EDO, 31-EDO, just intonation, harmonic series, Bohlen-Pierce. Notes go out as MPE (one channel per note + pitch bend)
+led_note: Root (and its octaves) main color, pure fifth color 4, notes that match the normal 12 notes color 2, other microtones color 3. Held pads white.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   MT56  MT57  MT58  MT59  MT60  MT61  MT62  MT63  ~     ~
+R4   MT48  MT49  MT50  MT51  MT52  MT53  MT54  MT55  ~     ~
+R5   MT40  MT41  MT42  MT43  MT44  MT45  MT46  MT47  TU-   TU+
+R6   MT32  MT33  MT34  MT35  MT36  MT37  MT38  MT39  ~     ~
+R7   MT24  MT25  MT26  MT27  MT28  MT29  MT30  MT31  >C    >C
+R8   MT16  MT17  MT18  MT19  MT20  MT21  MT22  MT23  ~     ~
+R9   MT8   MT9   MT10  MT11  MT12  MT13  MT14  MT15  ~     ~
+R10  MT0   MT1   MT2   MT3   MT4   MT5   MT6   MT7   ~     ~
+KEYNOTE R5C9: Previous tuning (shows its code on the grid)
+KEYNOTE R5C10: Next tuning
+KEYNOTE R10C1: MPE: in Ableton set the track input to the C100 with MPE on, and use an MPE instrument (Wavetable, Drift, Meld, Sampler). Bend range = bend_range in SETTINGS
+
+LAYER 2 PAGE 1 "Launcher"
+colors: #6aa9ff #b5d4ff #6a77ff #6adbff
+channel: 16
+led: auto
+purpose: Ableton clip launcher (Launchpad Pro style). Clips = notes 0-63 on channel 16, map them with MIDI Map. Row 2 = track buttons (channel 16, notes 64-95). Columns 9-10: R3-R4 = track modes arm / solo / mute / select, R5-R6 = volume / pan / send A / send B faders for the grid, R7 = Duplicate / Delete, R8 = Undo / Redo, R9 = Ableton record / Quantize, R10 = launch selected / clip on-off
+led_note: Clip pads dim main color. In Volume / Pan / Send modes the grid becomes 8 faders (lit bars). Active mode key orange. Held pads white.
+     C1        C2        C3        C4        C5        C6        C7        C8        C9        C10
+R1   ~         ~         ~         ~         ~         ~         ~         ~         ~         ~
+R2   TR1       TR2       TR3       TR4       TR5       TR6       TR7       TR8       ~         ~
+R3   CL56      CL57      CL58      CL59      CL60      CL61      CL62      CL63      TM1       TM2
+R4   CL48      CL49      CL50      CL51      CL52      CL53      CL54      CL55      TM3       TM0
+R5   CL40      CL41      CL42      CL43      CL44      CL45      CL46      CL47      TM4       TM5
+R6   CL32      CL33      CL34      CL35      CL36      CL37      CL38      CL39      TM6       TM7
+R7   CL24      CL25      CL26      CL27      CL28      CL29      CL30      CL31      KB:CTRL+D KB:DEL
+R8   CL16      CL17      CL18      CL19      CL20      CL21      CL22      CL23      KB:CTRL+Z KB:CTRL+Y
+R9   CL8       CL9       CL10      CL11      CL12      CL13      CL14      CL15      REC       KB:CTRL+U
+R10  CL0       CL1       CL2       CL3       CL4       CL5       CL6       CL7       KB:ENTER  KB:0
+KEYNOTE R2C1: Track 1 (notes 64-71 select, 72-79 arm, 80-87 solo, 88-95 mute, ch 16)
+KEYNOTE R3C9: Track mode arm. Press a lit mode key again to go back to select
+KEYNOTE R3C10: Track mode solo. Press a lit mode key again to go back to select
+KEYNOTE R4C9: Track mode mute. Press a lit mode key again to go back to select
+KEYNOTE R4C10: Track mode select (the default). Press a lit mode key again to go back to select
+KEYNOTE R5C9: Mode: grid = 8 volume faders (CC 40-47). Press a lit mode key again to go back to select
+KEYNOTE R5C10: Mode: grid = 8 pan faders (CC 48-55). Press a lit mode key again to go back to select
+KEYNOTE R6C9: Mode: grid = send A faders (CC 56-63). Press a lit mode key again to go back to select
+KEYNOTE R6C10: Mode: grid = send B faders (CC 72-79). Press a lit mode key again to go back to select
+KEYNOTE R7C9: Duplicate (Ctrl+D)
+KEYNOTE R7C10: Delete / clear (Del)
+KEYNOTE R8C9: Undo (Ctrl+Z)
+KEYNOTE R8C10: Redo (Ctrl+Y)
+KEYNOTE R9C9: Ableton record (CC 87)
+KEYNOTE R9C10: Ableton Quantize (Ctrl+U)
+KEYNOTE R10C1: GRID: Ableton launcher. No light feedback from Ableton yet
+KEYNOTE R10C9: Launch the selected clip or scene (Enter)
+KEYNOTE R10C10: Switch the selected clip on / off (0)
+
+LAYER 2 PAGE 2 "XY effects"
+colors: #6aa9ff #b5d4ff #6a77ff #6adbff
+channel: global
+led: auto
+purpose: Kaoss Pad style: X = CC16, Y = CC17, touch = CC18. Effect select (row 2) = CC19 on the board channel, and the 8 effects each have their own channel for X / Y / touch: effect 1 = channel 9 ... effect 8 = channel 16, so each effect can be mapped on its own in Ableton
+led_note: Grid in the main color, the pad nearest the XY position white.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   XF0   XF1   XF2   XF3   XF4   XF5   XF6   XF7   ~     ~
+R3   XY56  XY57  XY58  XY59  XY60  XY61  XY62  XY63  >C    >C
+R4   XY48  XY49  XY50  XY51  XY52  XY53  XY54  XY55  >C    >C
+R5   XY40  XY41  XY42  XY43  XY44  XY45  XY46  XY47  XH    -
+R6   XY32  XY33  XY34  XY35  XY36  XY37  XY38  XY39  >C    >C
+R7   XY24  XY25  XY26  XY27  XY28  XY29  XY30  XY31  >C    >C
+R8   XY16  XY17  XY18  XY19  XY20  XY21  XY22  XY23  >C    >C
+R9   XY8   XY9   XY10  XY11  XY12  XY13  XY14  XY15  >C    >C
+R10  XY0   XY1   XY2   XY3   XY4   XY5   XY6   XY7   ~     ~
+KEYNOTE R2C1: Effects 1-8 (R2C1-R2C8): select the effect (CC 19) and send X / Y / touch on channel 9-16 (effect n = channel 8 + n). The selected effect is white
+KEYNOTE R5C9: XY hold: keeps the effect on after you let go
+
+LAYER 2 PAGE 3 "Macros (with piano)"
+colors: #6aa9ff #b5d4ff #6a77ff #6adbff
+channel: 16
+led: auto
+purpose: Support page while you play a piano keyboard: 8 vertical faders for rack macros 1-8 (CC 102-109, ch 16). Row 2 stays the track buttons
+led_note: Each column is a fader: lit up to its current value.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 >C    >C
+R4   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 >C    >C
+R5   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~
+R6   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~
+R7   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~
+R8   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~
+R9   FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~
+R10  FD102 FD103 FD104 FD105 FD106 FD107 FD108 FD109 ~     ~
+KEYNOTE R10C1: GRID: tap a pad to set that macro: bottom row = 0, top row = 127
+
+LAYER 2 PAGE 4 "Knobs"
+colors: #6aa9ff #b5d4ff #6a77ff #6adbff
+channel: 15
+led: auto
+purpose: 32 knobs, two keys each (left = down, right = up, hold to keep turning), always on, on channel 15. Rows 7-10 = CC 20-35, rows 3-6 = CC 36-39 and 90-101. Track buttons in row 2 work as on page 1 (channel 16, notes 64-95)
+led_note: Every pad in the page colour; it brightens while pressed.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   K36-  K36+  K37-  K37+  K38-  K38+  K39-  K39+  >C    >C
+R4   K90-  K90+  K91-  K91+  K92-  K92+  K93-  K93+  >C    >C
+R5   K94-  K94+  K95-  K95+  K96-  K96+  K97-  K97+  ~     ~
+R6   K98-  K98+  K99-  K99+  K100- K100+ K101- K101+ ~     ~
+R7   K20-  K20+  K21-  K21+  K22-  K22+  K23-  K23+  ~     ~
+R8   K24-  K24+  K25-  K25+  K26-  K26+  K27-  K27+  ~     ~
+R9   K28-  K28+  K29-  K29+  K30-  K30+  K31-  K31+  ~     ~
+R10  K32-  K32+  K33-  K33+  K34-  K34+  K35-  K35+  ~     ~
+KEYNOTE R3C1: knob CC 36 down (channel 15)
+KEYNOTE R3C2: knob CC 36 up
+KEYNOTE R3C3: knob CC 37 down (channel 15)
+KEYNOTE R3C4: knob CC 37 up
+KEYNOTE R3C5: knob CC 38 down (channel 15)
+KEYNOTE R3C6: knob CC 38 up
+KEYNOTE R3C7: knob CC 39 down (channel 15)
+KEYNOTE R3C8: knob CC 39 up
+KEYNOTE R4C1: knob CC 90 down (channel 15)
+KEYNOTE R4C2: knob CC 90 up
+KEYNOTE R4C3: knob CC 91 down (channel 15)
+KEYNOTE R4C4: knob CC 91 up
+KEYNOTE R4C5: knob CC 92 down (channel 15)
+KEYNOTE R4C6: knob CC 92 up
+KEYNOTE R4C7: knob CC 93 down (channel 15)
+KEYNOTE R4C8: knob CC 93 up
+KEYNOTE R5C1: knob CC 94 down (channel 15)
+KEYNOTE R5C2: knob CC 94 up
+KEYNOTE R5C3: knob CC 95 down (channel 15)
+KEYNOTE R5C4: knob CC 95 up
+KEYNOTE R5C5: knob CC 96 down (channel 15)
+KEYNOTE R5C6: knob CC 96 up
+KEYNOTE R5C7: knob CC 97 down (channel 15)
+KEYNOTE R5C8: knob CC 97 up
+KEYNOTE R6C1: knob CC 98 down (channel 15)
+KEYNOTE R6C2: knob CC 98 up
+KEYNOTE R6C3: knob CC 99 down (channel 15)
+KEYNOTE R6C4: knob CC 99 up
+KEYNOTE R6C5: knob CC 100 down (channel 15)
+KEYNOTE R6C6: knob CC 100 up
+KEYNOTE R6C7: knob CC 101 down (channel 15)
+KEYNOTE R6C8: knob CC 101 up
+KEYNOTE R7C1: knob CC 20 down (channel 15)
+KEYNOTE R7C2: knob CC 20 up
+KEYNOTE R7C3: knob CC 21 down (channel 15)
+KEYNOTE R7C4: knob CC 21 up
+KEYNOTE R7C5: knob CC 22 down (channel 15)
+KEYNOTE R7C6: knob CC 22 up
+KEYNOTE R7C7: knob CC 23 down (channel 15)
+KEYNOTE R7C8: knob CC 23 up
+KEYNOTE R8C1: knob CC 24 down (channel 15)
+KEYNOTE R8C2: knob CC 24 up
+KEYNOTE R8C3: knob CC 25 down (channel 15)
+KEYNOTE R8C4: knob CC 25 up
+KEYNOTE R8C5: knob CC 26 down (channel 15)
+KEYNOTE R8C6: knob CC 26 up
+KEYNOTE R8C7: knob CC 27 down (channel 15)
+KEYNOTE R8C8: knob CC 27 up
+KEYNOTE R9C1: knob CC 28 down (channel 15)
+KEYNOTE R9C2: knob CC 28 up
+KEYNOTE R9C3: knob CC 29 down (channel 15)
+KEYNOTE R9C4: knob CC 29 up
+KEYNOTE R9C5: knob CC 30 down (channel 15)
+KEYNOTE R9C6: knob CC 30 up
+KEYNOTE R9C7: knob CC 31 down (channel 15)
+KEYNOTE R9C8: knob CC 31 up
+KEYNOTE R10C1: knob CC 32 down (channel 15)
+KEYNOTE R10C2: knob CC 32 up
+KEYNOTE R10C3: knob CC 33 down (channel 15)
+KEYNOTE R10C4: knob CC 33 up
+KEYNOTE R10C5: knob CC 34 down (channel 15)
+KEYNOTE R10C6: knob CC 34 up
+KEYNOTE R10C7: knob CC 35 down (channel 15)
+KEYNOTE R10C8: knob CC 35 up
+
+LAYER 2 PAGE 5 "Shortcuts"
+colors: #6aa9ff #b5d4ff #6a77ff #6adbff
+channel: 15
+led: off
+purpose: Navigate Ableton without mouse and keyboard: rows 3-6 = Ableton shortcuts, rows 7-10 = more shortcuts (edit, zoom, time, arrows). Track buttons in row 2 work as on page 1 (channel 16, notes 64-95)
+led_note: Pads off; they light while pressed.
+     C1                C2                C3                C4                C5                C6                C7                C8                C9                C10
+R1   ~                 ~                 ~                 ~                 ~                 ~                 ~                 ~                 ~                 ~
+R2   ~                 ~                 ~                 ~                 ~                 ~                 ~                 ~                 ~                 ~
+R3   KB:TAB            KB:SHIFT+TAB      KB:CTRL+ALT+B     KB:CTRL+ALT+L     KB:CTRL+ALT+M     KB:CTRL+M         KB:CTRL+K         KB:CTRL+F         >C                >C
+R4   KB:CTRL+T         KB:CTRL+SHIFT+T   KB:CTRL+I         KB:CTRL+SHIFT+M   KB:CTRL+R         KB:CTRL+G         KB:CTRL+D         KB:DEL            >C                >C
+R5   KB:CTRL+E         KB:CTRL+J         KB:CTRL+L         KB:CTRL+B         KB:CTRL+1         KB:CTRL+2         KB:CTRL+4         KB:CTRL+S         ~                 ~
+R6   KB:SPACE          KB:SHIFT+SPACE    KB:F9             KB:ENTER          KB:ESC            KB:0              KB:MINUS          KB:EQUAL          ~                 ~
+R7   KB:CTRL+A         KB:CTRL+Z         KB:CTRL+Y         KB:CTRL+SHIFT+A   KB:UP             KB:DOWN           KB:LEFT           KB:RIGHT          ~                 ~
+R8   KB:CTRL+C         KB:CTRL+X         KB:CTRL+V         KB:CTRL+U         KB:CTRL+SHIFT+X   KB:CTRL+SHIFT+G   KB:CTRL+ENTER     KB:K              ~                 ~
+R9   KB:Z              KB:X              KB:R              KB:CTRL+ALT+F     KB:A              KB:CTRL+SHIFT+W   KB:F11            -                 ~                 ~
+R10  KB:CTRL+SHIFT+E   KB:CTRL+SHIFT+DEL KB:CTRL+SHIFT+D   KB:CTRL+SHIFT+V   -                 -                 -                 -                 ~                 ~
+KEYNOTE R3C1: Session / Arrangement
+KEYNOTE R3C2: Clip / Device view
+KEYNOTE R3C3: Browser
+KEYNOTE R3C4: Detail view
+KEYNOTE R3C5: Mixer
+KEYNOTE R3C6: MIDI map mode
+KEYNOTE R3C7: Key map mode
+KEYNOTE R3C8: Follow
+KEYNOTE R4C1: New audio track
+KEYNOTE R4C2: New MIDI track
+KEYNOTE R4C3: Insert scene
+KEYNOTE R4C4: Insert MIDI clip
+KEYNOTE R4C5: Rename
+KEYNOTE R4C6: Group tracks
+KEYNOTE R4C7: Duplicate
+KEYNOTE R4C8: Delete
+KEYNOTE R5C1: Split
+KEYNOTE R5C2: Consolidate
+KEYNOTE R5C3: Loop selection
+KEYNOTE R5C4: Draw mode
+KEYNOTE R5C5: Narrow grid
+KEYNOTE R5C6: Widen grid
+KEYNOTE R5C7: Snap to grid
+KEYNOTE R5C8: Save
+KEYNOTE R6C1: Play / stop
+KEYNOTE R6C2: Continue
+KEYNOTE R6C3: Arrangement record
+KEYNOTE R6C4: Launch selected
+KEYNOTE R6C5: Escape
+KEYNOTE R6C6: Clip on / off
+KEYNOTE R6C7: Zoom out
+KEYNOTE R6C8: Zoom in
+KEYNOTE R7C1: Select all (CTRL+A)
+KEYNOTE R7C2: Undo (CTRL+Z)
+KEYNOTE R7C3: Redo (CTRL+Y)
+KEYNOTE R7C4: Invert selection (CTRL+SHIFT+A)
+KEYNOTE R7C5: Arrow up (UP)
+KEYNOTE R7C6: Arrow down (DOWN)
+KEYNOTE R7C7: Arrow left (LEFT)
+KEYNOTE R7C8: Arrow right (RIGHT)
+KEYNOTE R8C1: Copy (CTRL+C)
+KEYNOTE R8C2: Cut (CTRL+X)
+KEYNOTE R8C3: Paste (CTRL+V)
+KEYNOTE R8C4: Quantize (CTRL+U)
+KEYNOTE R8C5: Cut time (CTRL+SHIFT+X)
+KEYNOTE R8C6: Ungroup (CTRL+SHIFT+G)
+KEYNOTE R8C7: Apply MIDI tool (CTRL+ENTER)
+KEYNOTE R8C8: Highlight scale (K)
+KEYNOTE R9C1: Zoom to selection (Z)
+KEYNOTE R9C2: Zoom back (X)
+KEYNOTE R9C3: Reverse (R)
+KEYNOTE R9C4: Fade / crossfade (CTRL+ALT+F)
+KEYNOTE R9C5: Automation mode (A)
+KEYNOTE R9C6: Second window (CTRL+SHIFT+W)
+KEYNOTE R9C7: Full screen (F11)
+KEYNOTE R10C1: Split at time selection (CTRL+SHIFT+E)
+KEYNOTE R10C2: Delete time (CTRL+SHIFT+DEL)
+KEYNOTE R10C3: Duplicate time (CTRL+SHIFT+D)
+KEYNOTE R10C4: Paste time (CTRL+SHIFT+V)
+
+LAYER 3 PAGE 1 "Step recorder"
+colors: #4fe08c #a7f0c6 #4fe0bc #4fe05c
+channel: global
+led: auto
+purpose: 4-track step recorder, 16 or 32 steps (BARS 1-2) + mini drum sequencer. Rows 3-6 = tracks 1-4 (8 steps per step page, SG flicks the pages). Rows 7-10 = keyboards on 3 pages (SK): 2 pianos, 2 more pianos, drum pads + drum steps. Board REC + Play/Stop: stopped = step record, playing = live record into the playing step. Chords and notes played together fill one step. Each track has its own rate, swing and direction (keys R3-R4 at the right); each step its own velocity, probability and ratchet (edit modes). Drum pads record only into the drum steps. Plays only while this page is on screen
+led_note: Track steps in the track color (track 1 main, 2 color 2, 3 color 3, 4 color 4); the step cursor flashes white; the playhead is white; a muted track is dim; steps beyond the length are off. Edit modes: rows 3-6 become 8 faders with 4 levels: velocity in the track color (accent gold), probability violet, ratchet lime. Piano white keys bright, black keys dim. Control keys that change with the layer are cyan; orange while held or on.
+     C1     C2     C3     C4     C5     C6     C7     C8     C9     C10
+R1   ~      ~      ~      ~      ~      ~      ~      ~      ~      ~
+R2   ~      ~      ~      ~      ~      ~      ~      ~      ~      ~
+R3   SS0    SS1    SS2    SS3    SS4    SS5    SS6    SS7    MET    SDR
+R4   SS8    SS9    SS10   SS11   SS12   SS13   SS14   SS15   SRT    SSW
+R5   SS16   SS17   SS18   SS19   SS20   SS21   SS22   SS23   SM     ZC19
+R6   SS24   SS25   SS26   SS27   SS28   SS29   SS30   SS31   BARS   SK
+R7   Z20N61 Z20N63 ZC20   Z20N66 Z20N68 Z20N70 ZO20   SV     SR     TI
+R8   Z20N60 Z20N62 Z20N64 Z20N65 Z20N67 Z20N69 Z20N71 Z20N72 SG     LN
+R9   Z21N49 Z21N51 ZC21   Z21N54 Z21N56 Z21N58 ZO21   ZT21   ~      ~
+R10  Z21N48 Z21N50 Z21N52 Z21N53 Z21N55 Z21N57 Z21N59 Z21N60 ~      ~
+KEYNOTE R3C1: Tracks 1-4 = rows 3-6, 8 steps per step page (SG R9C9: 4 pages at 2 bars, 2 pages at 1 bar). Tap a step: the flashing white step cursor goes there. The arrow keys (top right) move it too: left / right = step, up / down = track. Step record: play, each note or chord fills the next step; REST / TIE; DEL = clear a step (Controls Shift: clear all)
+KEYNOTE R3C9: Metronome on / off (clicks on every beat while playing)
+KEYNOTE R3C10: Track direction (hold + arrows): FW forward, RV reverse, PP ping-pong, RN random
+KEYNOTE R4C9: Track rate (track under the cursor): hold + arrows. Up / down = 1/8, 1/16, 1/32; right / left = triplet on / off (3 dots on the grid = triplet)
+KEYNOTE R4C10: Track swing (hold + arrows), 0-50%: every second step is late
+KEYNOTE R5C9: Mute: mutes / unmutes the track where the flashing step cursor is
+KEYNOTE R5C10: Drum channel (zone 19, shared with layer 1 page 1). Hold it and use the arrows
+KEYNOTE R6C9: Bars: hold it and use the arrows. 1 bar = 16 steps, 2 bars = 32 steps, for all tracks and the drum steps. Changing it resets every track to the full length
+KEYNOTE R6C10: Keyboard page 1-3: hold it and use the arrows (or PG keys). Page 1 = piano + chord piano (zones 20, 21). Page 2 = two more (zones 22, 23). Page 3 = drum pads (bottom left, zone 19) + 16 drum steps (bottom right)
+KEYNOTE R7C3: Upper piano MIDI channel (hold + arrows)
+KEYNOTE R7C7: Upper piano octave (hold + arrows)
+KEYNOTE R7C8: Edit modes: double-tap = rows 3-6 become 8 faders (one per step) for the selected track. A single tap then switches what they edit: velocity (VE: ghost 25, low 60, normal 100, accent 127; track color, accent gold) > probability (PR: 25 / 50 / 75 / 100%, violet) > ratchet (RA: 1-4 hits in the step, lime). Double-tap again to leave. Keyboard pages 1-2 only
+KEYNOTE R7C9: Rest: empty step, move on (step record)
+KEYNOTE R7C10: Tie: hold the previous note through this step (step record)
+KEYNOTE R8C9: Step page: tap = next 8-step page on the tracks (4 pages at 2 bars) and the matching 16 drum steps (2 pages)
+KEYNOTE R8C10: Track length (hold + arrows), up to 16 or 32 steps
+KEYNOTE R9C3: Chord piano MIDI channel (hold + arrows)
+KEYNOTE R9C7: Chord piano octave (hold + arrows)
+KEYNOTE R9C8: Chord piano chord type (hold + arrows): auto (in key), major, minor, 7, maj7, m7, sus4, power
+KEYNOTE R10C1: GRID: tracks on top, keyboards below. Keyboard pages 2 and 3 swap rows 7-10 (see R6C10). Drum steps follow the same bars and tempo as the tracks
+
+LAYER 3 PAGE 2 "Drum sequencer"
+colors: #4fe08c #a7f0c6 #4fe0bc #4fe05c
+channel: global
+led: auto
+purpose: 8 drum lanes x 16 steps (lane 1 = bottom row = note 36 ... lane 8 = note 43). Runs with Play / Stop on the internal clock (or Ableton clock)
+led_note: Steps that are on in the main color, playhead column color 3, off steps dark.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   SQ56  SQ57  SQ58  SQ59  SQ60  SQ61  SQ62  SQ63  >C    >C
+R4   SQ48  SQ49  SQ50  SQ51  SQ52  SQ53  SQ54  SQ55  >C    >C
+R5   SQ40  SQ41  SQ42  SQ43  SQ44  SQ45  SQ46  SQ47  SP0   SP1
+R6   SQ32  SQ33  SQ34  SQ35  SQ36  SQ37  SQ38  SQ39  >C    >C
+R7   SQ24  SQ25  SQ26  SQ27  SQ28  SQ29  SQ30  SQ31  >C    >C
+R8   SQ16  SQ17  SQ18  SQ19  SQ20  SQ21  SQ22  SQ23  >C    >C
+R9   SQ8   SQ9   SQ10  SQ11  SQ12  SQ13  SQ14  SQ15  >C    >C
+R10  SQ0   SQ1   SQ2   SQ3   SQ4   SQ5   SQ6   SQ7   ~     ~
+KEYNOTE R5C9: Show steps 1-8
+KEYNOTE R5C10: Show steps 9-16
+
+LAYER 3 PAGE 3 "Euclidean"
+colors: #4fe08c #a7f0c6 #4fe0bc #4fe05c
+channel: global
+led: auto
+purpose: Euclidean drums (Polygene style): 8 lanes (notes 36-43, bottom row = lane 1), each up to 16 steps on the 1/16 clock with its own length, hits, start point and variation. Use the four arrows (top right): UP / DOWN pick the lane (its dim steps get brighter, the pads show L1-L8), LEFT / RIGHT change one setting of that lane. With NOTHING held the setting is the START POINT (the first step of the pattern, in its own colour). HOLD Length (R1C1), Hits (R2C1) or Variation (R1C2) to change those instead. Plays only while this page is on screen
+led_note: Hits in the lane colour (lanes alternate main colour / colour 2), empty steps dim (brighter in the picked lane), steps past the length off, the playing step white, the lane's start point in colour 4. Length / Hits / Variation are orange only while held.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   EP0   EP3   ~     ~     ~     ~     ~     ~     ~     ~
+R2   EP1   -     ~     ~     ~     ~     ~     ~     ~     ~
+R3   EU56  EU57  EU58  EU59  EU60  EU61  EU62  EU63  >C    >C
+R4   EU48  EU49  EU50  EU51  EU52  EU53  EU54  EU55  >C    >C
+R5   EU40  EU41  EU42  EU43  EU44  EU45  EU46  EU47  >C    >C
+R6   EU32  EU33  EU34  EU35  EU36  EU37  EU38  EU39  >C    >C
+R7   EU24  EU25  EU26  EU27  EU28  EU29  EU30  EU31  >C    >C
+R8   EU16  EU17  EU18  EU19  EU20  EU21  EU22  EU23  >C    >C
+R9   EU8   EU9   EU10  EU11  EU12  EU13  EU14  EU15  >C    >C
+R10  EU0   EU1   EU2   EU3   EU4   EU5   EU6   EU7   >C    >C
+KEYNOTE R1C1: LENGTH: hold it and use the arrows: up / down = pick the lane, left / right = change that lane's length (1-8). Off when not held
+KEYNOTE R1C2: VARIATION: hold it and use the arrows: up / down = pick the lane, left / right = 0-100% chance per step that a hit drops or a rest plays a ghost hit
+KEYNOTE R2C1: HITS: hold it and use the arrows: up / down = pick the lane, left / right = number of hits (spread as evenly as possible). Off when not held
+KEYNOTE R10C1: Tap a step = the lane's length ends at that step
+
+LAYER 3 PAGE 4 "CC sequencer"
+colors: #4fe08c #a7f0c6 #4fe0bc #4fe05c
+channel: global
+led: auto
+purpose: CC step sequencer for synth and effect parameters (Volca, analog synths via MIDI-to-CV, Ableton MIDI map). 4 lanes x 8 steps on 16th notes, and 8 EFFECT LAYERS (row 9): each layer gives every lane its own CC number and its own step values, and every layer that is on sends at the same time, so several effects run together. Rows 3-6 = the lanes of the selected layer; column 9 = MUTE per lane, column 10 = LEARN per lane (move a knob on your controller and the lane takes that CC). Not recording, the lanes are live faders. Record (R7C9): tap a step (its lane flashes), tap a key 1-8 for the value, double-tap a step = on / off. Rows 7-8: value -8 / +8 / -1 / +1, tempo -5 / +5, lane length - / +, lane CC - / +, MIDI channel - / +, play / stop, reset, fill lane, clear lane. Channel 14 by default; the layers use CC 20-51 (layer 1 = 20-23, layer 2 = 24-27 ...). Runs in the background, also on other pages. Steps that are off send nothing
+led_note: Steps in the lane colour (lane 1-4 = colours 1-4), brightness follows the step value, playhead white, steps past the lane length off, muted lane dim. Effect layers in 8 colours: bright = on, dim = off, white blink = selected. While you enter a value the lane flashes (brighter to the right).
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   CQ0   CQ1   CQ2   CQ3   CQ4   CQ5   CQ6   CQ7   CR19  CY0
+R4   CQ8   CQ9   CQ10  CQ11  CQ12  CQ13  CQ14  CQ15  CR20  CY1
+R5   CQ16  CQ17  CQ18  CQ19  CQ20  CQ21  CQ22  CQ23  CR21  CY2
+R6   CQ24  CQ25  CQ26  CQ27  CQ28  CQ29  CQ30  CQ31  CR22  CY3
+R7   CR0   CR1   CR2   CR3   CR4   CR5   CR6   CR7   CR23  >C
+R8   CR8   CR9   CR10  CR11  CR12  CR13  CR14  CR15  >C    >C
+R9   CE0   CE1   CE2   CE3   CE4   CE5   CE6   CE7   >C    >C
+R10  -     -     -     -     -     -     -     -     >C    >C
+KEYNOTE R3C1: Lanes 1-4 = rows 3-6, 8 steps each, of the selected effect layer. Not recording: tap a key = send that lane's CC live (column 1 = 0 ... column 8 = 127, like a fader). Recording: tap a step, the lane's 8 keys flash, then tap key 1-8 for its value (1 = 0, 8 = 127); double-tap a step = on / off
+KEYNOTE R3C9: MUTE lane 1 (all effect layers). Orange = muted
+KEYNOTE R3C10: LEARN lane 1: tap it, then move a knob on your controller (Ableton, a keyboard with knobs): the lane takes that CC number. Needs a device that sends CC; Volca synths cannot be learned, use CC - / + instead
+KEYNOTE R4C9: MUTE lane 2 (all effect layers). Orange = muted
+KEYNOTE R4C10: LEARN lane 2: tap it, then move a knob on your controller (Ableton, a keyboard with knobs): the lane takes that CC number. Needs a device that sends CC; Volca synths cannot be learned, use CC - / + instead
+KEYNOTE R5C9: MUTE lane 3 (all effect layers). Orange = muted
+KEYNOTE R5C10: LEARN lane 3: tap it, then move a knob on your controller (Ableton, a keyboard with knobs): the lane takes that CC number. Needs a device that sends CC; Volca synths cannot be learned, use CC - / + instead
+KEYNOTE R6C9: MUTE lane 4 (all effect layers). Orange = muted
+KEYNOTE R6C10: LEARN lane 4: tap it, then move a knob on your controller (Ableton, a keyboard with knobs): the lane takes that CC number. Needs a device that sends CC; Volca synths cannot be learned, use CC - / + instead
+KEYNOTE R7C1: Value of the selected step: -8
+KEYNOTE R7C2: Value: +8
+KEYNOTE R7C3: Value: -1
+KEYNOTE R7C4: Value: +1 (keys repeat when held)
+KEYNOTE R7C5: Tempo -5 BPM
+KEYNOTE R7C6: Tempo +5 BPM
+KEYNOTE R7C7: Length of the selected lane: shorter (1-8 steps)
+KEYNOTE R7C8: Length of the selected lane: longer
+KEYNOTE R7C9: RECORD on / off. Off = the 4 lanes are live faders. On = tap a step to edit it
+KEYNOTE R8C1: CC number of the selected lane: down
+KEYNOTE R8C2: CC number of the selected lane: up
+KEYNOTE R8C3: MIDI channel of the sequencer: down (1-16)
+KEYNOTE R8C4: MIDI channel: up
+KEYNOTE R8C5: Play / stop this sequencer (starts the internal clock if nothing else is running)
+KEYNOTE R8C6: Reset: start again from step 1
+KEYNOTE R8C7: Fill lane: switch every step of the lane on
+KEYNOTE R8C8: Clear lane: switch every step off and set the values to 64
+KEYNOTE R9C1: EFFECT LAYERS 1-8: tap = select the layer you edit, tap the selected one again = on / off. Bright = on, dim = off, white blink = selected. Every layer that is on sends its own CC numbers and values at the same time
+
+LAYER 4 PAGE 1 "Random walk"
+colors: #34c759 #5ac8fa #ff9f0a #ff2d95
+channel: global
+led: auto
+purpose: Random walk with up to 4 walkers (each its own colour and MIDI channel). Each walker moves on the 8x8 grid every tick: X = pitch (scale degree 1-8 of the selected scale and root), Y = velocity or a CC. Tap a pad = put the selected walker there (and switch it on). R3C9-R6C9 = select walker 1-4, R3C10-R6C10 = walker 1-4 on / off. The settings are keys you HOLD while you tap the arrows: R7C9 channel of the selected walker, R7C10 run on / off (tap), R8C9 rate, R8C10 step size, R9C9 pull to centre, R9C10 Y mode / CC number, R10C9 octave, R10C10 gate. Needs Play. Plays only while this page is on screen
+led_note: Each walker in its own palette color (walker 1-4 = colors 1-4), its last 3 positions dimmer, the field dim white. Select keys: selected walker white, others dim. On / off keys: walker color when on, very dim when off.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   RW56  RW57  RW58  RW59  RW60  RW61  RW62  RW63  WK0   WK4
+R4   RW48  RW49  RW50  RW51  RW52  RW53  RW54  RW55  WK1   WK5
+R5   RW40  RW41  RW42  RW43  RW44  RW45  RW46  RW47  WK2   WK6
+R6   RW32  RW33  RW34  RW35  RW36  RW37  RW38  RW39  WK3   WK7
+R7   RW24  RW25  RW26  RW27  RW28  RW29  RW30  RW31  GH6   GT0
+R8   RW16  RW17  RW18  RW19  RW20  RW21  RW22  RW23  GH0   GH1
+R9   RW8   RW9   RW10  RW11  RW12  RW13  RW14  RW15  GH2   GH3
+R10  RW0   RW1   RW2   RW3   RW4   RW5   RW6   RW7   GH4   GH5
+KEYNOTE R3C1: Tap = move the selected walker there (switches it on). X = scale degree, Y = velocity (bottom quiet, top loud) or the CC value
+KEYNOTE R3C9: Select walker 1-4 (R3-R6). Shows its channel (GL = board channel). Then tap a pad to place it, or hold R7C9 + arrows for its channel
+KEYNOTE R3C10: Walker 1-4 on / off (R3-R6). Walker 1 starts on, the others off
+KEYNOTE R7C9: Channel of the selected walker: hold it and use the arrows (up / right = higher, down / left = lower). GL = follows the board channel, then 1-16
+KEYNOTE R7C10: Run on / off for all walkers (tap)
+KEYNOTE R8C9: Rate: hold + arrows. 8 / 4 / 3 / 2 / 1 sixteenth steps per move (all walkers)
+KEYNOTE R8C10: Step size: hold + arrows. Cells per move (1-3)
+KEYNOTE R9C9: Pull to centre: hold + arrows. Chance (0-100%) that the move goes toward the middle
+KEYNOTE R9C10: Y mode: hold + up / down = velocity / CC; hold + left / right = the CC number (0-127)
+KEYNOTE R10C9: Octave: hold + arrows (-2 to +2)
+KEYNOTE R10C10: Gate: hold + arrows. Note length 25 / 50 / 75 / 100% of the tick
+
+LAYER 4 PAGE 2 "Pond"
+colors: #00b4ff #5e5ce6 #ffffff #64d2ff
+channel: global
+led: auto
+purpose: Pond: the 8x8 pad is a water surface. A pad press drops a pebble (it plays its own note) and ripples spread out. Where ripples overlap their heights add up; when the height at a cell passes the threshold, that cell plays its note. Notes are in the selected scale and root: +1 scale step per column, +3 per row. Wave height sets the velocity and a filter CC (CC 74 by default): big waves are loud and bright, fading ripples soft and muffled. Drum mode: the wave height picks the drum (36-43). Settings: HOLD a key in columns 9-10 (R3-R7) and use the arrows. R7C10 = melodic / drum mode, R8C9 = clear ripples. Plays only while this page is on screen. No Play key needed
+led_note: Wave crests in the main color (brighter = higher), troughs dim in color 2, the pebble flashes white.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   PD56  PD57  PD58  PD59  PD60  PD61  PD62  PD63  GH0   GH1
+R4   PD48  PD49  PD50  PD51  PD52  PD53  PD54  PD55  GH2   GH3
+R5   PD40  PD41  PD42  PD43  PD44  PD45  PD46  PD47  GH4   GH5
+R6   PD32  PD33  PD34  PD35  PD36  PD37  PD38  PD39  GH6   GH7
+R7   PD24  PD25  PD26  PD27  PD28  PD29  PD30  PD31  GH8   GT0
+R8   PD16  PD17  PD18  PD19  PD20  PD21  PD22  PD23  GT1   >C
+R9   PD8   PD9   PD10  PD11  PD12  PD13  PD14  PD15  >C    >C
+R10  PD0   PD1   PD2   PD3   PD4   PD5   PD6   PD7   >C    >C
+KEYNOTE R3C1: Tap = drop a pebble here. Ripples (max 8 at once) play the cells they reach
+KEYNOTE R3C9: Ripple speed: hold + arrows (1-6)
+KEYNOTE R3C10: Decay: hold + arrows. How long ripples last (1-5)
+KEYNOTE R4C9: Threshold: hold + arrows. Lower = more notes (1-9)
+KEYNOTE R4C10: Wavelength: hold + arrows. Short = busy, long = slow waves (1-5)
+KEYNOTE R5C9: Octave: hold + arrows (-2 to +2)
+KEYNOTE R5C10: Filter CC number: hold + arrows (default 74)
+KEYNOTE R6C9: Reach: hold + arrows. How far a ripple carries before it fades (1-5)
+KEYNOTE R6C10: Note length: hold + arrows (1-5: 60, 120, 200, 400, 800 ms)
+KEYNOTE R7C9: Max ripples at once: hold + arrows (1-8). Fewer = calmer
+KEYNOTE R7C10: Melodic / drum mode (tap)
+KEYNOTE R8C9: Clear all ripples (tap)
+
+LAYER 4 PAGE 3 "Constellation"
+colors: #ffd60a #5ac8fa #ffffff #ff375f
+channel: global
+led: auto
+purpose: Constellation: tap pads to place anchors (max 20, tap an anchor again to remove it). The anchors are joined by a nearest-neighbour path; a playhead runs along each path on the 16th clock (needs Play). On an anchor it plays a sustained chord from the in-key grid (held until the next anchor); on the cells in between it plays short notes (straight and diagonal). Shape sends CCs: area and perimeter = filter cutoff (CC 74), number of empty keys = reverb send (CC 91), number of anchors = maximum velocity. Arrows: up / down = BPM, left / right = maximum connection distance (low = several small sequences run at once). R10C10 = clear. Plays only while this page is on screen
+led_note: Anchors bright in the main color, path dim in color 2, playhead white.
+     C1    C2    C3    C4    C5    C6    C7    C8    C9    C10
+R1   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R2   ~     ~     ~     ~     ~     ~     ~     ~     ~     ~
+R3   CN56  CN57  CN58  CN59  CN60  CN61  CN62  CN63  >C    >C
+R4   CN48  CN49  CN50  CN51  CN52  CN53  CN54  CN55  >C    >C
+R5   CN40  CN41  CN42  CN43  CN44  CN45  CN46  CN47  >C    >C
+R6   CN32  CN33  CN34  CN35  CN36  CN37  CN38  CN39  >C    >C
+R7   CN24  CN25  CN26  CN27  CN28  CN29  CN30  CN31  >C    >C
+R8   CN16  CN17  CN18  CN19  CN20  CN21  CN22  CN23  >C    >C
+R9   CN8   CN9   CN10  CN11  CN12  CN13  CN14  CN15  >C    >C
+R10  CN0   CN1   CN2   CN3   CN4   CN5   CN6   CN7   >C    CX
+KEYNOTE R3C1: Tap = place an anchor (or remove it). Max 20. The arrows at the top right: up / down = BPM, left / right = maximum connection distance
+KEYNOTE R10C10: Clear: remove all anchors
