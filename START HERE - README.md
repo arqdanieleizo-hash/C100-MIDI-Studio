@@ -4,6 +4,9 @@ This is a custom MIDI firmware for the **Keychron C100 8K** (100 keys: an 8x8 pa
 
 **Credits and licence:** this project started from the idea and the first firmware by [FingerDrum Labo](https://github.com/FingerDrumLabo/keychron-c100-midi), and is built on [QMK](https://qmk.fm) and the Keychron QMK fork. Both are GPL, so this project is released under the **GNU GPL v2** (see `LICENSE`).
 
+> ## ⚠️ Tested on Windows only
+> The `.bat` files (flashing and building) were written and tested on **Windows 11**, not on macOS or Linux. To build the firmware yourself, read **[BUILDING.md](BUILDING.md)** first.
+
 > Only flash a **C100 8K**. Never flash another Keychron board with these files.
 > After flashing, the keyboard stops typing and becomes a MIDI device. To go back, flash the stock firmware (below).
 
@@ -50,7 +53,8 @@ They are in the main folder of this project. Double-click them.
 | File | What it does |
 |---|---|
 | **`Flash C100.bat`** | Writes a `.bin` to the keyboard with dfu-util (included in `flash tool/`). Shows a list of firmware files (newest first), or drag a `.bin` onto it. Details: `How to flash the C100.txt`. |
-| **`Build C100.bat`** | Compiles the firmware on your PC (1-3 minutes, no GitHub needed). Makes `keymap.c` from the layout file, builds with QMK, and saves the `.bin` next to it. It refuses a file that lacks the 256 KB flash setting. |
+| **`Set up building.bat`** | One time: checks QMK MSYS, Git and Node.js, and downloads the Keychron QMK source. See `BUILDING.md`. |
+| **`Build C100.bat`** | Compiles the firmware on your PC (1-3 minutes, no GitHub needed). Makes `keymap.c` from the layout file, builds with QMK, and saves the `.bin` next to it. It refuses a file that lacks the 256 KB flash setting. Uses your own folders if you list them in `build-locations.txt` (copy `build-locations.example.txt`). |
 | **`Build pages and guide.bat`** | Rebuilds the planner, the virtual keyboard, the guide and the keycap designer from the layout file. Run it after you change the layout. |
 
 **One-time set-up for building** (only if you want to compile yourself): Node.js, the QMK MSYS tools in `C:\QMK_MSYS`, and the Keychron QMK source in `C:\Users\<you>\qmk_keychron`. The `.bat` files have these paths at the top; change them if yours are different. Flashing needs none of this.

@@ -3,13 +3,42 @@ setlocal EnableDelayedExpansion
 title C100 builder
 cd /d "%~dp0"
 rem (variable names start with B_ because QMK's build reads variables like SRC and SH from the environment)
-set "B_QMK=C:\Users\Pichau\qmk_keychron"
-set "B_SH=C:\QMK_MSYS\usr\bin\bash.exe"
+rem Tested on Windows only.
+rem ---- where things are: the default places, or your own places written in "build-locations.txt" (see BUILDING.md) ----
+set "B_QMK=%USERPROFILE%\qmk_keychron"
+set "B_MSYS=C:\QMK_MSYS"
+set "B_NODE=C:\Program Files\nodejs\node.exe"
+if exist "%~dp0build-locations.txt" for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%~dp0build-locations.txt") do (
+  if /i "%%A"=="QMK" set "B_QMK=%%B"
+  if /i "%%A"=="MSYS" set "B_MSYS=%%B"
+  if /i "%%A"=="NODE" set "B_NODE=%%B"
+)
 echo.
-echo  ===== C100 8K builder =====
+echo  ===== C100 8K builder  (tested on Windows only) =====
 echo.
-if not exist "%B_SH%" ( echo  QMK MSYS not found at C:\QMK_MSYS & goto end )
-if not exist "%B_QMK%\keyboards\keychron\c100_8k" ( echo  Keychron QMK source not found at %B_QMK% & goto end )
+:check_msys
+if exist "%B_MSYS%\usr\bin\bash.exe" goto check_qmk
+echo  QMK MSYS was not found at: %B_MSYS%
+echo  Install it from https://msys.qmk.fm  (see BUILDING.md), or type the folder where it is.
+set "B_ASK="
+set /p "B_ASK= Folder of QMK MSYS (empty = stop): "
+if "%B_ASK%"=="" goto end
+set "B_MSYS=%B_ASK%"
+>>"%~dp0build-locations.txt" echo MSYS=%B_ASK%
+goto check_msys
+:check_qmk
+if exist "%B_QMK%\keyboards\keychron\c100_8k" goto locations_ok
+echo  The Keychron QMK source was not found at: %B_QMK%
+echo  Run "Set up building.bat" to download it, or type the folder where it is.
+set "B_ASK="
+set /p "B_ASK= Folder of the Keychron QMK source (empty = stop): "
+if "%B_ASK%"=="" goto end
+set "B_QMK=%B_ASK%"
+>>"%~dp0build-locations.txt" echo QMK=%B_ASK%
+goto check_qmk
+:locations_ok
+set "B_SH=%B_MSYS%\usr\bin\bash.exe"
+for /f "delims=" %%P in ('powershell -NoProfile -Command "$p = $env:B_QMK.Replace('\','/'); if ($p.Length -gt 1 -and $p[1] -eq ':') { '/' + $p.Substring(0,1).ToLower() + $p.Substring(2) } else { $p }"') do set "B_QMKU=%%P"
 
 rem ---- 1. which version folder: a folder dropped on this file, or the highest keymap-vNN ----
 set "B_SRC=%~1"
@@ -23,7 +52,6 @@ echo  Building from: %B_SRC%
 echo.
 
 rem ---- 1b. if the folder has a layout file and the generator, make keymap.c from the layout first ----
-set "B_NODE=C:\Program Files\nodejs\node.exe"
 set "B_LAY="
 if exist "%B_SRC%\tools\gen_keymap.js" if exist "%B_NODE%" for /f "delims=" %%L in ('powershell -NoProfile -Command "Get-ChildItem -Path '%B_SRC%' -Filter c100-layout-v*.txt | Sort-Object { [int]($_.BaseName -replace '\D','') } -Descending | Select-Object -First 1 -ExpandProperty FullName"') do set "B_LAY=%%L"
 if defined B_LAY (
@@ -44,11 +72,11 @@ rem ---- 3. build (about 1-3 minutes) ----
 echo  Building... this takes 1-3 minutes.
 echo.
 set "MSYSTEM=MINGW64"
-"%B_SH%" -lc "cd /c/Users/Pichau/qmk_keychron && rm -f keychron_c100_8k_midi.bin && make keychron/c100_8k:midi -j8 > /tmp/c100_build.log 2>&1; tail -n 25 /tmp/c100_build.log" | findstr /v /c:"Welcome to QMK" /c:"Documentation:" /c:"Support:" /c:"If you have" /c:"run "
+"%B_SH%" -lc "cd '%B_QMKU%' && rm -f keychron_c100_8k_midi.bin && make keychron/c100_8k:midi -j8 > /tmp/c100_build.log 2>&1; tail -n 25 /tmp/c100_build.log" | findstr /v /c:"Welcome to QMK" /c:"Documentation:" /c:"Support:" /c:"If you have" /c:"run "
 if not exist "%B_QMK%\keychron_c100_8k_midi.bin" (
   echo.
   echo  =====================================
-  echo   BUILD FAILED. Copy the lines above and send them to Claude.
+  echo   BUILD FAILED. Read the lines above and see "If the build fails" in BUILDING.md.
   echo  =====================================
   goto end
 )

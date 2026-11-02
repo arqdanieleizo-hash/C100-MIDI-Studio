@@ -1,5 +1,6 @@
 ﻿*.tmp
 build_log.txt
+build-locations.txt
 tools/hosttest/build/
 node_modules/
 .DS_Store

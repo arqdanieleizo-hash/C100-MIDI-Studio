@@ -1,0 +1,13 @@
+# Custom locations for "Build C100.bat" and "Set up building.bat".
+# To use them: make a COPY of this file named  build-locations.txt  (same folder), remove the # in front of a line
+# and write your own folder. Lines starting with # are ignored. No quotes needed, even if the path has spaces.
+# If a line is missing, the default is used.
+
+# Folder of the Keychron QMK source (the folder that contains "keyboards"). Default: C:\Users\<you>\qmk_keychron
+#QMK=D:\firmware\qmk_keychron
+
+# Folder where QMK MSYS is installed (the folder that contains "usr" and "mingw64"). Default: C:\QMK_MSYS
+#MSYS=D:\QMK_MSYS
+
+# Full path of node.exe. Default: C:\Program Files\nodejs\node.exe
+#NODE=D:\tools\nodejs\node.exe
