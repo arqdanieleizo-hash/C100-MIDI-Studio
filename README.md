@@ -87,4 +87,6 @@ The firmware is built on [QMK](https://qmk.fm) and the Keychron QMK fork for the
 
 This project started from the idea and the first firmware by **[FingerDrum Labo](https://github.com/FingerDrumLabo/keychron-c100-midi)**, who showed that the C100 8K can be a MIDI controller. It is built on **QMK** and **Keychron's** open firmware. All are GPL, so this project is released under the **GNU GPL v2** (see [LICENSE](LICENSE)).
 
-Not affiliated with Keychron.
+**No warranty.** This is a hobby project, provided "as is" (GPL v2, sections 11 and 12). Flashing any firmware carries a risk. You do it at your own risk; the RESET button and `c100_8k_STOCK.bin` are the way back. Only flash a C100 8K.
+
+Not affiliated with, endorsed by, or sponsored by Keychron, Ableton, Apple or Microsoft. Product names are used only to say what this works with. All trademarks belong to their owners.

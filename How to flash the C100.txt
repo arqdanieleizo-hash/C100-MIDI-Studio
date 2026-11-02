@@ -7,9 +7,9 @@ HOW TO BUILD THE FIRMWARE ON THIS PC (no GitHub needed)
 2. It saves the new .bin inside that same folder, for example
    files\keymap-v12\keychron_c100_8k_midi_v12.bin
    It refuses to save a file that is missing the 256 KB setting.
-3. If it says BUILD FAILED, copy the lines above it and send them to Claude.
+3. If it says BUILD FAILED, read the lines above it and see "If the build fails" in BUILDING.md.
 4. Then flash it with "Flash C100.bat" (below).
-Keep the Keychron source in C:\Users\Pichau\qmk_keychron (do not delete it).
+The Keychron QMK source and QMK MSYS must be installed first: see BUILDING.md (and "Set up building.bat"). Tested on Windows only.
 
 
 HOW TO FLASH THE C100
